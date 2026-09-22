@@ -25,8 +25,8 @@ Stream overlays are usually either static images or a pile of platform-specific
 scripts glued to one service's API. LiveScape separates the two halves:
 
 * a **renderer** that knows how to draw scenes and effects, and nothing else;
-* an **event protocol** that any source can speak — an operator pressing a
-  button today, a platform adapter tomorrow.
+* an **event protocol** that any source can speak, whether that is an operator
+  pressing a button today or a platform adapter tomorrow.
 
 The renderer has no idea what TikTok is, and never will. Platform adapters
 translate external events into normalized LiveScape events; everything below
@@ -34,16 +34,18 @@ that boundary stays the same.
 
 ## Current status
 
-**Interval 1 — foundation.** The end-to-end architecture works locally:
+LiveScape provides a working local event pipeline, from the operator control
+panel through the FastAPI event server to the renderer:
 
 ```
 control panel → FastAPI event server → WebSocket → renderer → visible change
 ```
 
-What actually exists and is verified:
+What exists and is verified:
 
 * three scenes (city, forest, space) and three effects (rain, snow, fireworks),
-  drawn with CSS/SVG/Canvas — no third-party artwork, no external assets;
+  drawn with CSS, SVG and Canvas, using no third-party artwork and no external
+  assets;
 * a versioned, typed, validated event protocol with an allowlist registry;
 * a local FastAPI event server with health, registry and event endpoints, plus
   WebSocket broadcast;
@@ -97,14 +99,16 @@ services/
   event-server/    FastAPI event server (Python 3.13+)
 packages/
   protocol/        Shared TypeScript protocol types, guards and registry
-docs/
-  protocol.md      Event protocol reference
-  obs.md           OBS Browser Source setup
+docs/              Documentation site sources (MkDocs)
+mkdocs.yml         Documentation site configuration
 ```
+
+`AGENTS.md`, `CLAUDE.md` and `CONTEXT.md` hold the engineering contract and a
+compact technical handoff for anyone (human or agent) picking the project up.
 
 ## Prerequisites
 
-* **Node.js 20.19+** (developed on 24) and **npm** — npm workspaces are the
+* **Node.js 20.19+** (developed on 24) and **npm**. npm workspaces are the
   only JavaScript package manager used here; do not mix in pnpm or yarn.
 * **Python 3.13+** (developed on 3.14).
 
@@ -120,8 +124,8 @@ npm install
 python -m venv .venv
 ```
 
-Activate it — `.venv\Scripts\activate` on Windows, `source .venv/bin/activate`
-elsewhere — then:
+Activate it (`.venv\Scripts\activate` on Windows, `source .venv/bin/activate`
+elsewhere), then:
 
 ```bash
 python -m pip install -e "services/event-server[dev]"
@@ -159,7 +163,7 @@ That starts both Vite dev servers:
 | Control panel | http://127.0.0.1:5174 |
 
 Run them individually with `npm run dev:renderer` / `npm run dev:panel`. Both
-read their endpoints from environment variables with local defaults — see the
+read their endpoints from environment variables with local defaults; see the
 `.env.example` file in each app.
 
 Open the renderer with `?debug=1` during development for a small overlay
@@ -168,8 +172,8 @@ default so the OBS source stays clean.
 
 ### Simulate events
 
-Open the control panel and press a scene or effect button — the renderer reacts
-immediately.
+Open the control panel and press a scene or effect button, and the renderer
+reacts immediately.
 
 The **Simulated viewer event** section is development functionality, labelled
 as such in the UI. It maps a pretend viewer action (gift / follow / chat
@@ -205,8 +209,8 @@ Events are versioned, typed and validated on both sides:
 ```
 
 Types: `scene.change`, `effect.trigger`, `effect.clear`, and the server-only
-`state.sync`. The full reference — bounds, defaults, the registry allowlist and
-the safety rules — is in [docs/protocol.md](docs/protocol.md).
+`state.sync`. The full reference (bounds, defaults, the registry allowlist and
+the safety rules) is in [docs/protocol.md](docs/protocol.md).
 
 ### HTTP and WebSocket surface
 
@@ -234,6 +238,23 @@ npm run build
 
 CI runs the same commands on every push and pull request.
 
+## Documentation
+
+Detailed documentation lives in [`docs/`](docs/) and is published with MkDocs
+and Material for MkDocs. Start with
+[architecture](docs/architecture.md), the [event protocol](docs/protocol.md) or
+[OBS setup](docs/obs.md).
+
+To work on the site locally:
+
+```bash
+python -m pip install -r requirements-docs.txt
+mkdocs serve
+```
+
+That serves it at http://127.0.0.1:8000. `mkdocs build --strict` renders the
+site into `site/`.
+
 ## Current limitations
 
 * **No persistence.** Scene state lives in memory. Restart the event server and
@@ -253,14 +274,14 @@ CI runs the same commands on every push and pull request.
 
 Everything below is future work, not current functionality.
 
-* **Platform adapters** — translate real livestream events into the existing
-  protocol, using official/compliant APIs only.
+* **Platform adapters** that translate real livestream events into the existing
+  protocol, using official and compliant APIs only.
 * **Viewer gift and event integrations** where they are officially available.
 * **More scenes and effects**, and a richer effect-composition model.
 * **Camera compositing and subject segmentation**, so the scene can render
   behind and in front of the person on camera.
 * **Three.js environments** for scenes that genuinely need 3D.
-* **Optional AI-assisted scene generation** — an enhancement, never a
+* **Optional AI-assisted scene generation** as an enhancement, never a
   dependency. The renderer must keep working with no AI provider configured.
 * **Remote video ingest** and connection-quality handling.
 * **Persistence and multi-operator support** if a real deployment needs them.
