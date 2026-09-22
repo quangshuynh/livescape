@@ -274,10 +274,12 @@ CI runs the same commands on every push and pull request.
 
 ## Documentation
 
-Detailed documentation lives in [`docs/`](docs/) and is published with MkDocs
-and Material for MkDocs. Start with
+The full documentation is published at
+**[quangshuynh.github.io/livescape](https://quangshuynh.github.io/livescape/)**.
+Its sources live in [`docs/`](docs/) and are built with MkDocs and Material for
+MkDocs. Good places to start are
 [architecture](docs/architecture.md), [camera and compositing](docs/camera.md),
-the [event protocol](docs/protocol.md) or [OBS setup](docs/obs.md).
+the [event protocol](docs/protocol.md) and [OBS setup](docs/obs.md).
 
 To work on the site locally:
 
@@ -286,8 +288,9 @@ python -m pip install -r requirements-docs.txt
 mkdocs serve
 ```
 
-That serves it at http://127.0.0.1:8000. `mkdocs build --strict` renders the
-site into `site/`.
+That serves it at http://127.0.0.1:8000/livescape/. `mkdocs build --strict`
+renders the site into `site/`. Pull requests that touch the documentation get
+a strict build in CI, and merges to `main` publish it to GitHub Pages.
 
 ## Current limitations
 

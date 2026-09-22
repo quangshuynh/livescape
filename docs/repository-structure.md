@@ -11,7 +11,8 @@ services/
 packages/
   protocol/          Shared TypeScript protocol types, guards and registry
 docs/                Documentation site sources
-.github/workflows/   CI
+.github/workflows/   CI (ci.yml) and documentation publishing (docs.yml)
+mkdocs.yml           Documentation site configuration
 ```
 
 The npm workspaces are `packages/*` and `apps/*`. The event server is not part

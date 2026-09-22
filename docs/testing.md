@@ -19,12 +19,19 @@ npm test
 npm run build
 ```
 
-CI runs exactly these commands on every push and pull request. Build the
-documentation locally when you change it:
+CI runs exactly these commands on every push and pull request.
+
+## Documentation
 
 ```bash
+python -m pip install -r requirements-docs.txt
 mkdocs build --strict
 ```
+
+The `Docs` workflow runs the same strict build on every pull request that
+touches `docs/`, `mkdocs.yml` or `requirements-docs.txt`, and fails on any
+warning, including a broken internal link. On `main` it also publishes the
+result to GitHub Pages. See [Documentation Site](documentation-site.md).
 
 ## Suite composition
 
