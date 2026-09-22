@@ -1,11 +1,13 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+import { mediapipeAssets } from './vite/mediapipeAssets.js';
+
 // The renderer is loaded by OBS from a plain HTTP URL, so relative asset paths
 // keep it working whether it is served by `vite preview` or any static host.
 export default defineConfig({
   base: './',
-  plugins: [react()],
+  plugins: [react(), mediapipeAssets()],
   server: {
     host: '127.0.0.1',
     port: 5173,
