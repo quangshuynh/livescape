@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
+import { planeOf, type EffectPlane } from '../compositor/layers.js';
 import type { ActiveEffectState } from '../rendererState.js';
 import { createEffectSystem, type EffectSystem, type Viewport } from './particles.js';
 
@@ -10,32 +11,43 @@ function effectKey(effect: ActiveEffectState): string {
 interface EffectsLayerProps {
   readonly effects: readonly ActiveEffectState[];
   readonly reducedMotion: boolean;
+  /**
+   * Which side of the camera subject this canvas draws on. Every effect is
+   * assigned to exactly one plane, so the two layers together still draw each
+   * active effect exactly once.
+   */
+  readonly plane: EffectPlane;
 }
 
 /**
- * Single canvas that hosts every active effect.
+ * One canvas per composition plane, hosting the effects assigned to it.
  *
  * The animation loop only runs while something is active, so an idle renderer
- * sitting in OBS costs nothing.
+ * sitting in OBS costs nothing, and a plane with no effects on it costs
+ * nothing either.
  */
-export function EffectsLayer({ effects, reducedMotion }: EffectsLayerProps) {
+export function EffectsLayer({ effects, reducedMotion, plane }: EffectsLayerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const systemsRef = useRef(new Map<string, EffectSystem>());
-  const effectsRef = useRef(effects);
-  const hasEffects = effects.length > 0;
+  const mine = useMemo(
+    () => effects.filter((effect) => planeOf(effect.effectId) === plane),
+    [effects, plane],
+  );
+  const effectsRef = useRef(mine);
+  const hasEffects = mine.length > 0;
 
   useEffect(() => {
-    effectsRef.current = effects;
-  }, [effects]);
+    effectsRef.current = mine;
+  }, [mine]);
 
   useEffect(() => {
     const systems = systemsRef.current;
-    const wanted = new Set(effects.map(effectKey));
+    const wanted = new Set(mine.map(effectKey));
 
     for (const key of [...systems.keys()]) {
       if (!wanted.has(key)) systems.delete(key);
     }
-    for (const effect of effects) {
+    for (const effect of mine) {
       const key = effectKey(effect);
       const existing = systems.get(key);
       if (existing) {
@@ -44,7 +56,7 @@ export function EffectsLayer({ effects, reducedMotion }: EffectsLayerProps) {
         systems.set(key, createEffectSystem(effect.effectId, { intensity: effect.intensity, reducedMotion }));
       }
     }
-  }, [effects, reducedMotion]);
+  }, [mine, reducedMotion]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -104,5 +116,11 @@ export function EffectsLayer({ effects, reducedMotion }: EffectsLayerProps) {
     };
   }, [hasEffects]);
 
-  return <canvas ref={canvasRef} className="effects-layer" aria-hidden="true" />;
+  return (
+    <canvas
+      ref={canvasRef}
+      className={`effects-layer effects-layer--${plane}`}
+      aria-hidden="true"
+    />
+  );
 }

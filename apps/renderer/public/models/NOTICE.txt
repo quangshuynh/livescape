@@ -1,0 +1,21 @@
+selfie_segmenter.tflite
+=======================
+
+MediaPipe SelfieSegmenter (square, 256x256 input, float16), used by LiveScape
+for local subject segmentation.
+
+  Source:  https://storage.googleapis.com/mediapipe-models/image_segmenter/
+           selfie_segmenter/float16/latest/selfie_segmenter.tflite
+  Authors: Tingbo Hou, Siargey Pisarchyk, Karthik Raveendran (Google)
+  Dated:   6 May 2021
+  License: Apache License, Version 2.0
+           https://www.apache.org/licenses/LICENSE-2.0
+
+The model card records the intended application as human segmentation from
+video in interactive applications, and states that the model is optimized for
+real-time performance rather than pixel-perfect masks. Surveillance and
+identity recognition are named as out of scope, and LiveScape does neither.
+
+The MediaPipe Tasks Vision runtime that executes this model is also licensed
+under Apache 2.0, and is published from node_modules at build time rather than
+committed. See docs/camera.md.

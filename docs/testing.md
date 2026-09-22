@@ -32,7 +32,7 @@ mkdocs build --strict
 | --- | --- | --- |
 | `services/event-server/tests` | 51 | Protocol validation, state folding and expiry, broadcast and client dropping, WebSocket handshake and `state.sync`, health, registry drift |
 | `packages/protocol` | 23 | Envelope parsing, bounds, defaults, request builders |
-| `apps/renderer` | 35 | Reducer transitions, reconnect backoff, effect particle budgets, rendering and the debug overlay |
+| `apps/renderer` | 211 | Reducer transitions, reconnect backoff, effect particle budgets, camera lifecycle, segmentation scheduling, compositing, and rendering |
 | `apps/control-panel` | 20 | Request building, rejection handling, simulated-action mapping, UI behaviour |
 
 Python tests use pytest with `filterwarnings = ["error"]`, so a new warning
@@ -41,6 +41,26 @@ from our own code fails the suite.
 TypeScript tests use Vitest with jsdom. WebSocket behaviour is tested against a
 fake socket (`src/test/fakeWebSocket.ts` in each app) rather than a live
 server, which keeps reconnect timing deterministic.
+
+## Testing the camera without a camera
+
+The renderer's camera and segmentation code is the largest part of the suite,
+and none of it touches real hardware. Four fakes carry it:
+
+| Fake | Stands in for |
+| --- | --- |
+| `src/test/fakeMedia.ts` | `navigator.mediaDevices`, `MediaStream` and `MediaStreamTrack`. Records every stream it hands out, so a leaked track is an assertion rather than a guess. |
+| `src/test/fakeSegmenter.ts` | A `SubjectSegmenter` whose inference the test completes by hand, which is what makes the scheduler's concurrency rules observable. |
+| `src/test/fakeCanvas.ts` | A recording 2D context and a manual animation clock, so the compositor's real loop runs and its draw calls can be asserted on. |
+| `vi.mock('@mediapipe/tasks-vision')` | The ML runtime, for the delegate-fallback and mask-extraction tests. |
+
+That covers the lifecycle (explicit acquisition, permission denial, unavailable
+and busy devices, enumeration, switching, stopping, track shutdown, unmount
+cleanup), the scheduler (single-flight inference, no unbounded queue, stale
+frames dropped, failure tolerance, disposal), the compositor (each mode, layer
+ordering, the segmentation-failure fallback, framing) and regressions (scenes,
+effects, disconnect and reconnect, and invalid events, all while the camera is
+running).
 
 ## What a good test looks like here
 
@@ -61,3 +81,8 @@ Two claims require actual verification before they are written down anywhere:
   if real hardware was tested.
 * **OBS compatibility.** Only state that something works in OBS if OBS was
   tested. Nothing in the test suite exercises OBS.
+
+Those are separate levels of evidence, and the documentation keeps them
+separate. What has been verified for the camera pipeline, and what has not, is
+recorded in [Camera and Compositing](camera.md); mask quality against a real
+person is explicitly in the "not verified" column.

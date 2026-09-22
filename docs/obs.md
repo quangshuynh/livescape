@@ -77,3 +77,35 @@ it at the event server with `VITE_LIVESCAPE_WS_URL` (see
 * **Background throttling.** Browsers freeze `requestAnimationFrame` in hidden
   tabs, so effects pause if you background a normal browser tab. OBS drives its
   Browser Source itself and is not affected.
+
+## Using the camera in OBS
+
+An OBS Browser Source **refuses `getUserMedia` by default**, returning
+`NotAllowedError`, because it has no way to show a permission prompt. Device
+enumeration works and returns full labels; only capture is refused. LiveScape
+reports this as "Permission blocked" and keeps rendering scenes and effects
+normally.
+
+Granting capture requires starting OBS with a Chromium flag:
+
+```text
+obs64.exe --use-fake-ui-for-media-stream
+```
+
+!!! danger "That flag applies to every Browser Source"
+
+    It auto-accepts camera and microphone requests for **all** Browser Sources
+    in that OBS instance, with no prompt. Only use it if you trust every
+    Browser Source URL in your scene collection.
+
+Two more things worth knowing:
+
+* Keep the OBS Browser Source on the bare renderer URL. The camera controls
+  live behind `?setup=1`, and a source pointed at that URL would put the setup
+  panel on stream.
+* If LiveScape is using a webcam, avoid adding an OBS **Video Capture Device**
+  source for the same physical webcam. Many webcams allow only one consumer,
+  and the loser gets an error.
+
+Full details, including what was measured and what was not, are in
+[Camera and Compositing](camera.md).

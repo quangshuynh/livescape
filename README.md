@@ -17,7 +17,9 @@
 
 Local-first interactive scene engine for livestreams: a renderer that draws a
 dynamic environment around a live camera feed and reacts to events in real
-time, designed to be dropped into OBS as a Browser Source.
+time, designed to be dropped into OBS as a Browser Source. Your camera is
+separated from your physical background on your own machine; frames never leave
+the renderer.
 
 ## What problem it solves
 
@@ -52,13 +54,15 @@ What exists and is verified:
 * a control panel with scene/effect controls and a clearly-labelled simulated
   viewer-event section;
 * reconnect handling: the renderer keeps rendering when the server goes away,
-  and re-syncs when it comes back.
+  and re-syncs when it comes back;
+* **camera compositing**: the renderer opens a local camera, removes your
+  physical background with a segmentation model that runs on your machine, and
+  draws you between the scene's background and foreground effect planes.
 
-What does **not** exist yet: any livestream platform integration, AI, camera
-compositing, segmentation, audio, persistence or authentication. See
-[Roadmap](#roadmap). Nothing in this repository talks to TikTok, YouTube or any
-other platform, and the simulated events in the control panel are labelled as
-what they are.
+What does **not** exist yet: any livestream platform integration, AI, audio,
+persistence or authentication. See [Roadmap](#roadmap). Nothing in this
+repository talks to TikTok, YouTube or any other platform, and the simulated
+events in the control panel are labelled as what they are.
 
 ## Architecture
 
@@ -167,8 +171,36 @@ read their endpoints from environment variables with local defaults; see the
 `.env.example` file in each app.
 
 Open the renderer with `?debug=1` during development for a small overlay
-showing connection state, current scene and active effects. It is off by
-default so the OBS source stays clean.
+showing connection state, current scene, active effects and camera
+diagnostics. It is off by default so the OBS source stays clean.
+
+### Camera
+
+Open the renderer with `?setup=1` for the camera panel:
+
+```text
+http://127.0.0.1:5173/?setup=1
+```
+
+Pick **Raw** to show the camera as it is, or **Segmented** to have your
+background removed locally and be composited into the scene. The panel also
+covers device selection, mirroring, framing, segmentation quality and live
+performance diagnostics.
+
+The camera is never opened until you ask for it, and the choice is not
+remembered, so a reload always comes back with the camera off. Segmentation
+uses MediaPipe Tasks Vision with Google's SelfieSegmenter model (both
+Apache-2.0); the runtime and the model are served from the renderer's own
+origin, so no CDN and no internet connection are involved.
+
+Camera frames stay in the renderer tab. They are never sent to the event
+server, over the WebSocket, or to any network service, and nothing is recorded
+or written to disk. Full details, including measured performance and what has
+and has not been verified on real hardware, are in
+[docs/camera.md](docs/camera.md).
+
+Like the debug overlay, `?setup=1` is off by default. Do not put it in the URL
+you give OBS.
 
 ### Simulate events
 
@@ -242,8 +274,8 @@ CI runs the same commands on every push and pull request.
 
 Detailed documentation lives in [`docs/`](docs/) and is published with MkDocs
 and Material for MkDocs. Start with
-[architecture](docs/architecture.md), the [event protocol](docs/protocol.md) or
-[OBS setup](docs/obs.md).
+[architecture](docs/architecture.md), [camera and compositing](docs/camera.md),
+the [event protocol](docs/protocol.md) or [OBS setup](docs/obs.md).
 
 To work on the site locally:
 
@@ -263,8 +295,16 @@ site into `site/`.
   loopback use only. Do not expose it to an untrusted network.
 * **No platform integration.** Simulated events are the only event source
   besides the control panel.
-* **No camera compositing.** The renderer draws a background environment; it
-  does not yet composite a camera feed or separate a subject from it.
+* **Segmentation runs on the main thread.** MediaPipe's video API is
+  synchronous, so inference competes with rendering. It measured around 6 ms
+  per inference in OBS without dropping frames, but a Web Worker is the
+  clearest next improvement.
+* **The camera needs a flag inside OBS.** An OBS Browser Source refuses
+  `getUserMedia` unless OBS is started with `--use-fake-ui-for-media-stream`,
+  which auto-grants camera access to *every* browser source in that instance.
+* **Segmentation is not studio quality.** The model is optimised for real-time
+  use, not pixel-perfect masks; hair, fingers, glasses and low light are where
+  that shows.
 * **Single process, single machine.** No multi-user coordination, no remote
   control, no deployment story.
 * **Effects are 2D canvas.** They are intentionally lightweight; there is no 3D
@@ -278,8 +318,10 @@ Everything below is future work, not current functionality.
   protocol, using official and compliant APIs only.
 * **Viewer gift and event integrations** where they are officially available.
 * **More scenes and effects**, and a richer effect-composition model.
-* **Camera compositing and subject segmentation**, so the scene can render
-  behind and in front of the person on camera.
+* **Segmentation in a Web Worker**, so inference stops competing with the
+  render loop.
+* **Richer scene composition** using the compositor's layering, so scene
+  elements as well as effects can sit in front of the subject.
 * **Three.js environments** for scenes that genuinely need 3D.
 * **Optional AI-assisted scene generation** as an enhancement, never a
   dependency. The renderer must keep working with no AI provider configured.
