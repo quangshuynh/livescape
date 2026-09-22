@@ -1,0 +1,17 @@
+{
+  "name": "@livescape/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Versioned, typed LiveScape event protocol shared by the renderer and control panel.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./registry.json": "./registry.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}
