@@ -1,0 +1,7 @@
+# Documentation site tooling. Kept separate from the event server's
+# dependencies so building the docs never affects the runtime install.
+#
+# MkDocs 2.0 removes the plugin and theming systems that Material for MkDocs
+# depends on, so the major version is pinned until that shakes out.
+mkdocs>=1.6,<2
+mkdocs-material>=9.5,<10
