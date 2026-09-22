@@ -88,13 +88,12 @@ body {
 .stage__vignette {
   position: absolute;
   inset: 0;
-  z-index: 3;
   pointer-events: none;
   background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.45) 100%);
 }
 
-/* Composition planes. The subject sits between the two effect canvases so
-   weather can fall in front of a person standing inside the scene. */
+/* Composition planes. Stacking order is not set here: every stage layer takes
+   its z-index from `compositor/layers.ts`. */
 .effects-layer {
   position: absolute;
   inset: 0;
@@ -103,21 +102,12 @@ body {
   pointer-events: none;
 }
 
-.effects-layer--background {
-  z-index: 4;
-}
-
 .camera-layer {
   position: absolute;
   inset: 0;
-  z-index: 5;
   width: 100%;
   height: 100%;
   pointer-events: none;
-}
-
-.effects-layer--foreground {
-  z-index: 6;
 }
 
 /* The camera stream needs a video element to decode into, but it is never the
@@ -138,7 +128,6 @@ body {
 /* Debug overlay: only mounted when the renderer is opened with `?debug=1`. */
 .debug-overlay {
   position: absolute;
-  z-index: 7;
   top: 16px;
   left: 16px;
   min-width: 220px;

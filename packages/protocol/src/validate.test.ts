@@ -27,7 +27,7 @@ function envelope(overrides: Record<string, unknown> = {}): Record<string, unkno
 
 describe('registry', () => {
   it('exposes exactly the allowlisted scenes and effects', () => {
-    expect(REGISTRY.scenes.map((s) => s.id)).toEqual(['city', 'forest', 'space']);
+    expect(REGISTRY.scenes.map((s) => s.id)).toEqual(['city', 'forest', 'space', 'roadside-workshop']);
     expect(REGISTRY.effects.map((e) => e.id)).toEqual(['rain', 'snow', 'fireworks']);
   });
 

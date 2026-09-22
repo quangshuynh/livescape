@@ -2,7 +2,10 @@ import { useEffect, useId } from 'react';
 
 import type { CameraController } from '../camera/useCamera.js';
 import type { CameraMode, CameraState } from '../camera/types.js';
+import { stageZIndex } from '../compositor/layers.js';
 import type { CompositorStats } from '../compositor/stats.js';
+import { describeActorCounts, useActorCounts } from '../scenes/diagnostics.js';
+import type { SceneDirector } from '../scenes/director.js';
 import { QUALITY_ORDER, QUALITY_PRESETS } from '../segmentation/quality.js';
 
 const MODES: readonly { readonly id: CameraMode; readonly label: string }[] = [
@@ -69,6 +72,9 @@ export interface SetupPanelProps {
   readonly connection: string;
   readonly sceneId: string;
   readonly effects: readonly string[];
+  /** The page's own animation frame rate. */
+  readonly frameRate: number;
+  readonly director: SceneDirector;
 }
 
 /**
@@ -77,8 +83,18 @@ export interface SetupPanelProps {
  * It drives the camera in this tab and nothing else: no camera data, and no
  * camera state, is sent to the event server or the control panel.
  */
-export function SetupPanel({ camera, stats, connection, sceneId, effects }: SetupPanelProps) {
+export function SetupPanel({
+  camera,
+  stats,
+  connection,
+  sceneId,
+  effects,
+  frameRate,
+  director,
+}: SetupPanelProps) {
   const { state, refreshDevices } = camera;
+  const actors = useActorCounts(director);
+  const { engine } = director.current;
   const deviceSelectId = useId();
   const qualityId = useId();
 
@@ -90,7 +106,11 @@ export function SetupPanel({ camera, stats, connection, sceneId, effects }: Setu
   const { segmentation: segmentationStats } = stats;
 
   return (
-    <aside className="setup" aria-label="LiveScape camera setup">
+    <aside
+      className="setup"
+      aria-label="LiveScape camera setup"
+      style={{ zIndex: stageZIndex('setup') }}
+    >
       <header className="setup__header">
         <h1 className="setup__title">Camera setup</h1>
         <p className={`setup__status setup__status--${state.status}`}>{STATUS_TEXT[state.status]}</p>
@@ -280,6 +300,30 @@ export function SetupPanel({ camera, stats, connection, sceneId, effects }: Setu
       </section>
 
       <section className="setup__section">
+        <h2 className="setup__heading">Scene actors</h2>
+        {engine.spawners.length > 0 ? (
+          <div className="setup__actors" role="group" aria-label="Spawn an actor">
+            {engine.spawners.map((spawner) => (
+              <button
+                key={spawner.id}
+                type="button"
+                className="setup__mode"
+                onClick={() => engine.trigger(spawner.id)}
+              >
+                {spawner.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="setup__hint">This scene has no actors.</p>
+        )}
+        <p className="setup__hint">
+          Spawns one actor in this tab only, within the scene&apos;s usual caps. A busy lane
+          refuses a second vehicle.
+        </p>
+      </section>
+
+      <section className="setup__section">
         <h2 className="setup__heading">Diagnostics</h2>
         <dl className="setup__stats">
           <dt>Camera</dt>
@@ -288,6 +332,8 @@ export function SetupPanel({ camera, stats, connection, sceneId, effects }: Setu
               ? `${state.resolution.width}x${state.resolution.height}`
               : '-'}
           </dd>
+          <dt>Page</dt>
+          <dd>{round(frameRate)} FPS</dd>
           <dt>Render</dt>
           <dd>{running ? `${round(stats.renderFps)} FPS` : '-'}</dd>
           <dt>Segmentation input</dt>
@@ -314,6 +360,8 @@ export function SetupPanel({ camera, stats, connection, sceneId, effects }: Setu
           <dd>{connection}</dd>
           <dt>Scene</dt>
           <dd>{sceneId}</dd>
+          <dt>Actors</dt>
+          <dd>{describeActorCounts(actors)}</dd>
           <dt>Effects</dt>
           <dd>{effects.length > 0 ? effects.join(', ') : 'none'}</dd>
         </dl>

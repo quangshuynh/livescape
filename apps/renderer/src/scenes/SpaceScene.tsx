@@ -21,7 +21,7 @@ function buildStars(seed: number, count: number): Star[] {
   }));
 }
 
-export function SpaceScene() {
+export function SpaceBackdrop() {
   const stars = useMemo(() => buildStars(31337, 320), []);
   const brightStars = useMemo(() => buildStars(8125, 14), []);
 

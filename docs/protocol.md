@@ -60,7 +60,7 @@ Both runtimes validate these independently.
 
 | Field | Rule |
 | --- | --- |
-| `sceneId` | must be in the registry: `city`, `forest`, `space` |
+| `sceneId` | must be in the registry: `city`, `forest`, `space`, `roadside-workshop` |
 | `effectId` | must be in the registry: `rain`, `snow`, `fireworks` |
 | `transitionMs` | integer, `0 … 10000`, default `900` |
 | `intensity` | number, `0.01 … 1`, default `1` |

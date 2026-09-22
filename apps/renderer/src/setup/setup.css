@@ -2,7 +2,6 @@
 
 .setup {
   position: absolute;
-  z-index: 8;
   top: 0;
   right: 0;
   width: 320px;
@@ -174,4 +173,10 @@
   margin: 0;
   font-size: 11px;
   text-align: right;
+}
+
+.setup__actors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }

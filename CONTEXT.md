@@ -30,9 +30,12 @@ panel already sends.
 
 ```text
 apps/renderer/         React + Vite renderer; the OBS Browser Source
+  src/scenes/            Scene art per plane, SCENES definitions, SceneDirector
+  src/actors/            Actor vocabulary, validation, population model, engine,
+                         sprite art, ActorPlane
   src/camera/            Camera lifecycle (pure reducer, media access, hook)
   src/segmentation/      SubjectSegmenter boundary, MediaPipe backend, scheduler
-  src/compositor/        Layer order, framing maths, draw routine, camera layer
+  src/compositor/        Stage order, framing maths, draw routine, camera layer
   src/setup/             The `?setup=1` camera setup panel
   public/models/         Committed `.tflite` model plus its NOTICE
   vite/mediapipeAssets.ts  Publishes the MediaPipe WASM runtime locally
@@ -96,14 +99,16 @@ Full reference: [docs/protocol.md](docs/protocol.md).
 * Subscribes to `/ws`, re-validates every frame, and ignores anything invalid.
 * Reconnects with exponential backoff and jitter, 500 ms up to 8 s, forever.
 * Keeps the current scene on screen when the server disappears.
-* Resolves scene ids through `SCENE_COMPONENTS`, a fixed component map, and
+* Resolves scene ids through `SCENES`, a fixed map of scene definitions, and
   effect ids through a fixed particle-system factory.
 * Crossfades scenes, expires timed effects on a 250 ms tick, and honors
-  `prefers-reduced-motion` by cutting particle budgets.
+  `prefers-reduced-motion` by holding scenes still (no CSS ambience, no ambient
+  actors) and cutting particle budgets.
 * Owns the camera, segmentation and compositing. None of it touches the
   protocol or the event server.
 * Renders no chrome by default. `?debug=1` enables a status overlay and
-  `?setup=1` mounts the camera setup panel.
+  `?setup=1` mounts the camera setup panel, both of which show live actor
+  counts; setup can spawn a scene actor locally.
 
 **Event server** (`services/event-server`)
 
@@ -126,7 +131,8 @@ Full reference: [docs/protocol.md](docs/protocol.md).
 
 ## Scenes and effects
 
-Scenes: `city`, `forest`, `space`. Drawn with CSS and SVG, no external assets.
+Scenes: `city`, `forest`, `space`, `roadside-workshop`. Drawn with inline CSS
+and SVG original to the repository; no image, font or external asset.
 
 Effects: `rain`, `snow`, `fireworks`. Canvas particle systems with per-effect
 budgets scaled by intensity. `fireworks` defaults to 8000 ms; `rain` and `snow`
@@ -135,15 +141,53 @@ run until cleared.
 Each effect is assigned to exactly one composition plane by `EFFECT_PLANE` in
 `compositor/layers.ts`: `rain` and `snow` are foreground, `fireworks` is
 background. Two `EffectsLayer` canvases filter by plane, so with the camera off
-the visual result is unchanged.
+the visual result is unchanged. Effects are not scene-aware.
+
+## Scene composition
+
+**Stage order** is `STAGE_LAYERS` in `compositor/layers.ts`, the single source
+of z-index (applied inline, not in CSS): backdrop 1, environment 2, vignette 3,
+background effects 4, subject 5, foreground 6, foreground effects 7, debug 8,
+setup 9. `backdrop`, `environment` and `foreground` are scene planes
+(`SceneLayer`); only `foreground` is in front of the subject.
+
+**Scene definitions** (`scenes/definition.ts`, `scenes/index.ts`): artwork
+components per plane, actor spawners as data, a seed, and `maxActors`. All art
+uses a 960x540 scene space mapped like `xMidYMax slice`; `.scene-frame` gives
+actors the same mapping in CSS. `validateSceneDefinition` is run over every
+shipped scene by the tests; `createSceneEngine` drops invalid spawners with a
+warning instead of throwing.
+
+**Actors** (`actors/`). Two behaviours only, `traverse` and `path`. Sprites
+come from the `SPRITE_SIZES` allowlist. `ActorPopulation` is pure (caller
+passes `now`, asks `nextDueAt()`); `ActorEngine` wraps it with one timer per
+scene showing and a subscription per plane. Caps: 24 actors per scene hard
+limit, per-scene `maxActors`, per-spawner `maxAlive`, min interval 500 ms,
+burst up to 8. Lanes are exclusive; late wake-ups never burst. Depth within a
+plane is the ground-line y, applied as z-index. `trigger(spawnerId)` spawns on
+demand within caps; only the setup panel calls it. Reduced motion removes
+ambient actors and stops spawning; triggered actors run at half speed.
+
+**Rendering.** `ActorPlane` renders one element per actor and hands its whole
+path to one linear Web Animation (compositor thread). Positions are
+percentages of the actor's own box, so nothing is measured. React re-renders a
+plane only on add/remove; there is no per-frame JavaScript for actors.
+
+**Lifecycle.** `SceneDirector` (`scenes/director.ts`, bound by
+`useSceneDirector`) owns showings. A change retires the outgoing engine (no new
+spawns), keeps it for `transitionMs`, then stops it, which removes its actors.
+At most two showings exist; re-showing the current scene is a no-op. Wrappers
+are keyed per showing so an outgoing scene keeps its DOM. The director shares
+nothing with the camera. It is started and stopped by an effect, so React
+StrictMode's double mount is safe.
 
 ## Camera compositing
 
 Renderer-local, optional, and independent of the event system in both
 directions.
 
-**Layer order** (z-index in `styles.css`): scene 1-2, vignette 3, background
-effects 4, camera subject 5, foreground effects 6, debug 7, setup 8.
+**Layer order**: see Scene composition. The camera canvas is the `subject`
+stage layer.
 
 **Camera lifecycle.** `camera/cameraState.ts` is a pure reducer with no browser
 API; `camera/media.ts` wraps `getUserMedia`, enumeration and track shutdown;
@@ -205,14 +249,16 @@ Every value is also the built-in default, so no `.env` file is required.
 | `services/event-server/tests` (pytest) | 51 |
 | `packages/protocol` (Vitest) | 23 |
 | `apps/control-panel` (Vitest) | 20 |
-| `apps/renderer` (Vitest) | 211 |
+| `apps/renderer` (Vitest) | 281 |
 
 Coverage is concentrated on protocol validation, the state reducer on both
 sides, broadcast and disconnect behaviour, WebSocket handshake and `state.sync`,
 registry drift, and the camera pipeline: lifecycle, scheduler concurrency,
-compositing and layer order, and regressions with the camera active. No test
-needs a camera, a GPU, or OBS. Media, segmentation and the canvas are faked in
-`apps/renderer/src/test/`.
+compositing and layer order, regressions with the camera active, and scene
+composition: actor spawning, caps, lanes, cleanup, determinism, reduced motion,
+director lifecycle and stage order around the subject in raw and segmented
+modes. No test needs a camera, a GPU, or OBS. Media, segmentation, the canvas
+and the scene clock (`FakeClock`) are faked in `apps/renderer/src/test/`.
 
 Verification commands:
 
@@ -245,6 +291,8 @@ documentation build is local only.
 * Camera state is renderer-local and is not in the event protocol.
 * The camera is never opened without an explicit request, and that choice does
   not survive a reload.
+* Stacking order comes only from `STAGE_LAYERS`. Scene definitions are data
+  plus artwork; no event reaches them, and actors cannot run scene code.
 
 ## Limitations
 
@@ -258,8 +306,12 @@ documentation build is local only.
 * An OBS Browser Source refuses `getUserMedia` unless OBS is started with
   `--use-fake-ui-for-media-stream`, which auto-grants camera access to every
   browser source in that instance.
-* Mask quality has not been validated against a real person; no physical camera
-  was available. Verified with synthetic and OBS Virtual Camera input.
+* Actors move linearly at constant speed; effects ignore a scene's framing
+  (rain falls indoors in Roadside Workshop, fireworks draw over its walls).
+* Scene composition has been exercised with synthetic camera input only; the
+  built-in browser blocks camera capture and OBS was not run. A real person
+  passing in front of Roadside Workshop traffic has not been seen yet.
+* Mask quality has not been validated against a real person. Verified with synthetic and OBS Virtual Camera input.
 * No audio, no 3D, no AI.
 * Single process, single machine. No multi-operator coordination.
 
@@ -268,10 +320,11 @@ documentation build is local only.
 * Move segmentation inference into a Web Worker. The `SubjectSegmenter`
   interface already isolates the backend, so the compositor and camera
   lifecycle do not change.
-* Use the compositor's layering for scene elements, not just effects, so parts
-  of a scene can be drawn in front of the subject.
-* Validate mask quality against a real camera and a real person, which this
-  machine could not do.
+* Validate Roadside Workshop and mask quality with a real camera and a real
+  person, in OBS. The development machine has a camera and OBS 32; neither has
+  been run against this renderer yet.
+* Event-triggered scene actions through a registry-allowlisted action id that
+  maps onto `ActorEngine.trigger`, without a free-form "execute" event.
 * Platform adapters as separate processes that speak the existing protocol.
 * Possible follow-ups for the documentation site: a `mkdocs build --strict` job
   in CI, and GitHub Pages deployment once that is in scope.

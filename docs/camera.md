@@ -2,7 +2,7 @@
 
 LiveScape can put you inside one of its scenes. The renderer opens your camera,
 separates you from your physical background locally, and composites the result
-between the scene's background and foreground layers.
+between the parts of the scene behind you and the parts in front of you.
 
 ```text
 Camera
@@ -189,13 +189,21 @@ never downloads it.
 The renderer composites back to front:
 
 ```text
-scene            the LiveScape environment, crossfading
-vignette         scene framing
-background       effects that belong behind the subject
-camera subject   the locally segmented person
-foreground       effects that fall between camera and subject
-debug / setup    local only, never in the OBS output
+backdrop            scene: the far world and its actors
+environment         scene: the near set around the subject and its actors
+vignette            scene framing
+background effects  effects that belong behind the subject
+camera subject      the local camera feed, raw or segmented
+foreground          scene: artwork and actors in front of the subject
+foreground effects  effects in front of everything in the scene
+debug / setup       local only, never in the OBS output
 ```
+
+A scene puts its artwork and moving actors on its own three planes, so in
+Roadside Workshop a car passes behind you and leaves blow past in front of you.
+Raw and segmented modes use the same plane: in raw mode the camera frame is
+opaque, so only the scene's foreground and the foreground effects show over it.
+See [Scenes and Effects](scenes-and-effects.md#composition).
 
 Each effect belongs to exactly one plane:
 
@@ -206,8 +214,8 @@ Each effect belongs to exactly one plane:
 | `fireworks` | background | They read as distant sky. |
 
 That split is what makes a person look like they are standing *inside* the
-scene rather than pasted on top of it. With the camera off the two planes stack
-adjacently and the result is unchanged.
+scene rather than pasted on top of it. With the camera off the subject plane is
+empty and the result is unchanged.
 
 Background removal is a canvas composite, not a per-pixel loop. The camera
 frame is drawn, then the mask is drawn over it with `destination-in`, which
