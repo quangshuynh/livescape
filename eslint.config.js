@@ -6,7 +6,8 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', '.venv/**'],
+    // `site/` is the generated MkDocs output; it ships third-party bundles.
+    ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', '.venv/**', 'site/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

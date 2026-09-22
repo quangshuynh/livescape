@@ -1,7 +1,7 @@
 # Using the LiveScape renderer as an OBS Browser Source
 
 The renderer is an ordinary web page. OBS does not need to know anything about
-LiveScape, and LiveScape does not need OBS — nothing in the test suite requires
+LiveScape, and LiveScape does not need OBS; nothing in the test suite requires
 it.
 
 ## 1. Start LiveScape locally
@@ -40,7 +40,7 @@ In OBS: **Sources → + → Browser**.
 | Use custom frame rate | optional; 60 FPS if your scene has the headroom |
 | Shutdown source when not visible | **off** — otherwise the page reloads and drops its WebSocket every time you switch scenes |
 | Refresh browser when scene becomes active | **off** — the renderer restores its state from the server automatically |
-| Control audio via OBS | not needed; the renderer produces no audio in this interval |
+| Control audio via OBS | not needed; the renderer produces no audio |
 
 Leave "Custom CSS" empty. The renderer already fills its viewport, hides
 scrollbars, and shows no UI chrome of any kind.
@@ -54,7 +54,7 @@ within a second. Press **Rain**, then **Clear effects**.
 ## Production build instead of the dev server
 
 The dev server is convenient but not required. `npm run build` writes a static
-bundle to `apps/renderer/dist`, which you can serve with anything — including
+bundle to `apps/renderer/dist`, which you can serve with anything, including
 `npm run preview -w @livescape/renderer` (http://127.0.0.1:4173). The renderer
 is built with relative asset paths so it works from any static host.
 
@@ -68,7 +68,7 @@ it at the event server with `VITE_LIVESCAPE_WS_URL` (see
   by default. Do not expose it to a network you do not control.
 * **Debug overlay.** Opening the renderer with `?debug=1` shows a small status
   box with the connection state, current scene and active effects. It is off by
-  default so nothing unexpected appears on stream — do not add `?debug=1` to
+  default so nothing unexpected appears on stream. Do not add `?debug=1` to
   the OBS URL.
 * **Server restarts.** If the event server restarts, the renderer reconnects on
   its own (exponential backoff, capped at 8s) and adopts whatever the fresh
