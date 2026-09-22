@@ -10,10 +10,20 @@ export type CompositorContext = Pick<
   | 'translate'
   | 'scale'
   | 'setTransform'
+  | 'fillRect'
 > & {
   globalCompositeOperation: GlobalCompositeOperation;
   filter: string;
+  fillStyle: CanvasRenderingContext2D['fillStyle'];
+  imageSmoothingEnabled: boolean;
+  imageSmoothingQuality: ImageSmoothingQuality;
 };
+
+/**
+ * `composite` is the only view that ever reaches OBS. `matte` shows the mask
+ * itself, white subject on black, and is only offered by the setup panel.
+ */
+export type CompositorView = 'composite' | 'matte';
 
 export type DrawableImage = CanvasImageSource;
 
@@ -24,6 +34,7 @@ export interface CameraFrameDraw {
   readonly rect: Rect;
   readonly mirror: boolean;
   readonly featherPx: number;
+  readonly view?: CompositorView;
   /** Stage size in CSS pixels. */
   readonly width: number;
   readonly height: number;
@@ -35,8 +46,9 @@ export interface CameraFrameDraw {
  * Background removal is a composite, not a per-pixel loop: the frame goes down
  * first, then the mask is drawn over it with `destination-in`, which keeps
  * only the pixels the mask covers. The mask is much smaller than the stage, so
- * the browser's bilinear upscale is what softens the edge, and the optional
- * blur widens it further.
+ * it is upscaled with the browser's high-quality filter, which keeps a smooth
+ * contour instead of the stair-stepping a bilinear upscale of a small alpha
+ * mask shows along diagonal edges. The optional blur widens the edge further.
  */
 export function drawCameraFrame(ctx: CompositorContext, frame: CameraFrameDraw): void {
   const { rect } = frame;
@@ -51,13 +63,26 @@ export function drawCameraFrame(ctx: CompositorContext, frame: CameraFrameDraw):
     ctx.translate(-(rect.x + rect.width / 2), 0);
   }
 
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'low';
+
+  if (frame.view === 'matte' && frame.mask) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+    ctx.drawImage(frame.mask, rect.x, rect.y, rect.width, rect.height);
+    ctx.restore();
+    return;
+  }
+
   ctx.drawImage(frame.source, rect.x, rect.y, rect.width, rect.height);
 
   if (frame.mask) {
     const feather = frame.featherPx > 0;
     ctx.globalCompositeOperation = 'destination-in';
     if (feather) ctx.filter = `blur(${frame.featherPx}px)`;
+    ctx.imageSmoothingQuality = 'low';
     ctx.drawImage(frame.mask, rect.x, rect.y, rect.width, rect.height);
+    ctx.imageSmoothingQuality = 'low';
     // Both are reset rather than left to `restore()`, because a leaked filter
     // would blur the next frame's camera image as well as its mask.
     if (feather) ctx.filter = 'none';

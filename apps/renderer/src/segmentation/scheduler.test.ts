@@ -271,3 +271,136 @@ describe('SegmentationScheduler disposal', () => {
     expect(scheduler.stats.errors).toBe(0);
   });
 });
+
+describe('SegmentationScheduler frame capture and pairing', () => {
+  it('only captures a frame when an inference actually starts', async () => {
+    const { scheduler, segmenter } = harness(40);
+    const captures: number[] = [];
+    const capture = (sequence: number) => {
+      captures.push(sequence);
+      return FRAME;
+    };
+
+    expect(scheduler.submit(capture, 0)).toBe('started');
+    expect(scheduler.submit(capture, 16)).toBe('skipped');
+    segmenter.finishOne(solidMask(2, 2, 1));
+    await settle();
+    expect(scheduler.submit(capture, 20)).toBe('throttled');
+
+    // Skipped and throttled frames were never copied.
+    expect(captures).toEqual([1]);
+  });
+
+  it('numbers inferences and hands the number back with the mask', async () => {
+    const segmenter = new FakeSegmenter();
+    segmenter.manual = false;
+    const results: number[] = [];
+    const scheduler = new SegmentationScheduler({
+      segmenter,
+      minIntervalMs: 0,
+      onMask: (_mask, result) => results.push(result.sequence),
+    });
+
+    for (let i = 0; i < 3; i += 1) {
+      scheduler.submit(FRAME, i * 33);
+      await settle();
+    }
+
+    expect(results).toEqual([1, 2, 3]);
+  });
+
+  it('reports a started inference that produced no mask', async () => {
+    const segmenter = new FakeSegmenter();
+    const dropped: number[] = [];
+    const scheduler = new SegmentationScheduler({
+      segmenter,
+      minIntervalMs: 0,
+      onMask: () => {},
+      onDrop: (sequence) => dropped.push(sequence),
+    });
+
+    scheduler.submit(FRAME, 0);
+    segmenter.finishOne(null);
+    await settle();
+    scheduler.submit(FRAME, 33);
+    segmenter.failOne(new Error('lost context'));
+    await settle();
+
+    expect(dropped).toEqual([1, 2]);
+  });
+
+  it('does not start when the capture yields nothing', () => {
+    const { scheduler, segmenter } = harness();
+
+    expect(scheduler.submit(() => null, 0)).toBe('stopped');
+    expect(segmenter.calls).toHaveLength(0);
+    expect(scheduler.isBusy).toBe(false);
+  });
+});
+
+describe('SegmentationScheduler duty cycle', () => {
+  function timed(maxDutyCycle: number) {
+    const segmenter = new FakeSegmenter();
+    let clock = 0;
+    const scheduler = new SegmentationScheduler({
+      segmenter,
+      minIntervalMs: 20,
+      maxDutyCycle,
+      onMask: () => {},
+      now: () => clock,
+    });
+    return {
+      scheduler,
+      segmenter,
+      advance: (ms: number) => {
+        clock += ms;
+      },
+    };
+  }
+
+  it('stretches the interval when masks cost more than the budget allows', async () => {
+    const { scheduler, segmenter, advance } = timed(0.5);
+
+    scheduler.submit(FRAME, 0);
+    advance(30); // each mask costs 30 ms
+    segmenter.finishOne();
+    await settle();
+
+    // 30 ms at a 50% duty cycle needs 60 ms between starts, not the preset's 20.
+    expect(scheduler.stats.costMs).toBe(30);
+    expect(scheduler.stats.intervalMs).toBe(60);
+    advance(20);
+    expect(scheduler.submit(FRAME, 50)).toBe('throttled');
+    advance(10);
+    expect(scheduler.submit(FRAME, 60)).toBe('started');
+  });
+
+  it('keeps the preset interval while masks are cheap', async () => {
+    const { scheduler, segmenter, advance } = timed(0.5);
+
+    scheduler.submit(FRAME, 0);
+    advance(5);
+    segmenter.finishOne();
+    await settle();
+
+    expect(scheduler.stats.intervalMs).toBe(20);
+  });
+
+  it('applies no budget without a duty cycle', async () => {
+    const segmenter = new FakeSegmenter();
+    let clock = 0;
+    const scheduler = new SegmentationScheduler({
+      segmenter,
+      minIntervalMs: 10,
+      onMask: () => {},
+      now: () => clock,
+    });
+
+    scheduler.submit(FRAME, 0);
+    clock += 100;
+    segmenter.finishOne();
+    await settle();
+
+    expect(scheduler.stats.intervalMs).toBe(10);
+  });
+});

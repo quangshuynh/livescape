@@ -343,8 +343,49 @@ describe('diagnostics', () => {
 
     await waitFor(() => expect(panel.textContent).toContain('1280x720'));
     // Segmentation input is the camera aspect with its longest side clamped.
-    expect(panel.textContent).toContain('256x144');
+    expect(panel.textContent).toContain('320x180');
     // The resolved backend is surfaced so a CPU fallback is visible.
     expect(panel.textContent).toContain('fake');
+  });
+
+  it('shows the matte-quality figures', async () => {
+    const setup = renderApp();
+    await startCamera(setup, 'Segmented');
+    const panel = setup.container.querySelector('.setup') as HTMLElement;
+
+    act(() => frames.tick(50));
+    await act(async () => {
+      setup.segmenter.finishOne(solidMask(16, 9, 1));
+    });
+    act(() => frames.tick(600));
+
+    await waitFor(() => expect(panel.textContent).toContain('Mask age'));
+    const stats = panel.querySelector('.setup__stats') as HTMLElement;
+    for (const label of ['Quality', 'Mask processing', 'Stale', 'Camera rate']) {
+      expect(within(stats).getByText(label)).toBeTruthy();
+    }
+    expect(stats.textContent).toContain('Balanced');
+  });
+});
+
+describe('matte view', () => {
+  it('is a setup-panel control that shows the mask in this tab', async () => {
+    const setup = renderApp();
+    await startCamera(setup, 'Segmented');
+    const panel = setup.container.querySelector('.setup') as HTMLElement;
+    const toggle = within(panel).getByRole('button', { name: 'Show matte' });
+
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    act(() => toggle.click());
+
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    expect(panel.textContent).toContain('The OBS Browser Source never draws it.');
+  });
+
+  it('does not exist without the setup panel', () => {
+    window.history.replaceState({}, '', '/');
+    const { container } = render(<App mediaDevices={new FakeMediaDevices(DEVICES)} />);
+
+    expect(within(container).queryByRole('button', { name: 'Show matte' })).toBeNull();
   });
 });

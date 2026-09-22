@@ -1,5 +1,5 @@
 import { act, cleanup, render, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { cameraReducer, initialCameraState } from '../camera/cameraState.js';
 import type { CameraAction } from '../camera/cameraState.js';
@@ -44,10 +44,15 @@ interface Harness {
   unmount(): void;
 }
 
-function mount(state: CameraState, segmenter = new FakeSegmenter()): Harness {
+function mount(
+  state: CameraState,
+  segmenter = new FakeSegmenter(),
+  view: 'composite' | 'matte' = 'composite',
+): Harness {
   const statuses: [SegmentationStatus, string | undefined][] = [];
   const props = {
     stream: {} as MediaStream,
+    view,
     onSegmentationStatus: (status: SegmentationStatus, error?: string) => {
       statuses.push([status, error]);
     },
@@ -160,8 +165,9 @@ describe('CameraLayer in segmented mode', () => {
       context.canvas.classList.contains('camera-layer'),
     );
     const draws = layer?.calls.filter((call) => call[0] === 'drawImage') ?? [];
-    // Camera frame, then the mask composited over it.
-    expect(draws.length).toBe(2);
+    // Every draw is a camera frame followed by the mask composited over it.
+    expect(draws.length).toBeGreaterThanOrEqual(2);
+    expect(draws.length % 2).toBe(0);
     expect(layer?.calls.some((call) => call[0] === 'setTransform')).toBe(true);
   });
 
@@ -261,5 +267,211 @@ describe('CameraLayer in segmented mode', () => {
     act(() => frames.tick(600));
 
     expect(reports.length).toBeGreaterThan(0);
+  });
+});
+
+const layerCalls = () =>
+  canvas.contexts.find((context) => context.canvas.classList.contains('camera-layer'))?.calls ??
+  [];
+/** Sources of the camera-frame draws on the subject layer (every other draw is a mask). */
+const frameSources = () =>
+  layerCalls()
+    .filter((call) => call[0] === 'drawImage')
+    .filter((_, index) => index % 2 === 0)
+    .map((call) => call[1]);
+
+async function firstMask(segmenter: FakeSegmenter, statuses: Harness['statuses']) {
+  await waitFor(() => expect(statuses.map(([s]) => s)).toContain('ready'));
+  act(() => frames.tick());
+  await act(async () => {
+    segmenter.finishOne(solidMask(16, 9, 1));
+  });
+}
+
+describe('CameraLayer frame and mask synchronisation', () => {
+  // The scheduler's rate limit reads `performance.now()`; tie it to the
+  // animation clock so ticking frames also advances time for it.
+  beforeEach(() => {
+    vi.spyOn(performance, 'now').mockImplementation(() => frames.time);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('draws the frame the mask was computed from, never the live video', async () => {
+    const { segmenter, statuses, container } = mount(cameraState('segmented'));
+    await firstMask(segmenter, statuses);
+    act(() => frames.tick());
+
+    const video = container.querySelector('video');
+    const sources = frameSources();
+    expect(sources.length).toBeGreaterThan(0);
+    for (const source of sources) {
+      expect(source).not.toBe(video);
+      expect(source).toBeInstanceOf(HTMLCanvasElement);
+    }
+  });
+
+  it('keeps the previous pair on screen while the next frame is segmented', async () => {
+    const { segmenter, statuses } = mount(cameraState('segmented'));
+    await firstMask(segmenter, statuses);
+    const shown = frameSources().at(-1);
+
+    // The next inference starts on a newer frame but has not finished.
+    act(() => frames.tick(50));
+    expect(segmenter.inFlight).toBe(1);
+    act(() => frames.tick(50));
+
+    expect(frameSources().at(-1)).toBe(shown);
+  });
+
+  it('shows the new frame as soon as its own mask arrives', async () => {
+    const { segmenter, statuses } = mount(cameraState('segmented'));
+    await firstMask(segmenter, statuses);
+    const first = frameSources().at(-1);
+
+    act(() => frames.tick(50));
+    await act(async () => {
+      segmenter.finishOne(solidMask(16, 9, 1));
+    });
+
+    expect(frameSources().at(-1)).not.toBe(first);
+  });
+
+  it('does not redraw an unchanged pair on every animation frame', async () => {
+    const segmenter = new FakeSegmenter();
+    const { statuses } = mount(cameraState('segmented'), segmenter);
+    await firstMask(segmenter, statuses);
+    const before = frameSources().length;
+
+    // Inference for the next frame is held open, so nothing new can be shown.
+    act(() => {
+      for (let i = 0; i < 5; i += 1) frames.tick();
+    });
+
+    expect(frameSources().length).toBe(before);
+  });
+
+  it('segments each camera frame at most once where frames are reported', async () => {
+    let present: (() => void) | null = null;
+    const prototype = HTMLVideoElement.prototype as unknown as Record<string, unknown>;
+    prototype.requestVideoFrameCallback = (callback: (now: number) => void) => {
+      present = () => callback(frames.time);
+      return 1;
+    };
+    prototype.cancelVideoFrameCallback = () => {};
+    try {
+      const segmenter = new FakeSegmenter();
+      segmenter.manual = false;
+      const { statuses } = mount(cameraState('segmented'), segmenter);
+      await waitFor(() => expect(statuses.map(([s]) => s)).toContain('ready'));
+
+      // No camera frame yet: nothing to segment.
+      act(() => frames.tick(50));
+      expect(segmenter.calls).toHaveLength(0);
+
+      act(() => present?.());
+      await act(async () => frames.tick(50));
+      await act(async () => frames.tick(50));
+      await act(async () => frames.tick(50));
+
+      // One camera frame, one inference, however many animation frames ran.
+      expect(segmenter.calls).toHaveLength(1);
+    } finally {
+      delete prototype.requestVideoFrameCallback;
+      delete prototype.cancelVideoFrameCallback;
+    }
+  });
+
+  it('segments a frame that arrived during inference once inference finishes', async () => {
+    let present: (() => void) | null = null;
+    const prototype = HTMLVideoElement.prototype as unknown as Record<string, unknown>;
+    prototype.requestVideoFrameCallback = (callback: (now: number) => void) => {
+      present = () => callback(frames.time);
+      return 1;
+    };
+    prototype.cancelVideoFrameCallback = () => {};
+    try {
+      const segmenter = new FakeSegmenter();
+      const { statuses } = mount(cameraState('segmented'), segmenter);
+      await waitFor(() => expect(statuses.map(([s]) => s)).toContain('ready'));
+
+      act(() => present?.());
+      act(() => frames.tick(50));
+      expect(segmenter.calls).toHaveLength(1);
+
+      // A camera frame arrives while that inference is still running.
+      act(() => present?.());
+      act(() => frames.tick(50));
+      expect(segmenter.calls).toHaveLength(1);
+
+      await act(async () => segmenter.finishOne(solidMask(16, 9, 1)));
+      act(() => frames.tick(50));
+
+      // It was kept, not dropped: no further camera frame was needed.
+      expect(segmenter.calls).toHaveLength(2);
+    } finally {
+      delete prototype.requestVideoFrameCallback;
+      delete prototype.cancelVideoFrameCallback;
+    }
+  });
+
+  it('releases every held frame when segmentation stops', async () => {
+    const open = new Set<number>();
+    let made = 0;
+    vi.stubGlobal(
+      'VideoFrame',
+      class {
+        readonly id = ++made;
+        readonly displayWidth = 1280;
+        readonly displayHeight = 720;
+        constructor() {
+          open.add(this.id);
+        }
+        close() {
+          open.delete(this.id);
+        }
+      },
+    );
+    try {
+      const { segmenter, statuses, rerenderWith } = mount(cameraState('segmented'));
+      await firstMask(segmenter, statuses);
+      act(() => frames.tick(50));
+      expect(made).toBe(2);
+      expect(open.size).toBe(2);
+
+      await act(async () => rerenderWith(cameraState('raw')));
+
+      expect(open.size).toBe(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe('CameraLayer matte view', () => {
+  it('draws the mask on black instead of the subject', async () => {
+    const segmenter = new FakeSegmenter();
+    const { statuses } = mount(cameraState('segmented'), segmenter, 'matte');
+    await firstMask(segmenter, statuses);
+
+    const draws = layerCalls().filter((call) => call[0] === 'drawImage');
+    const fills = layerCalls().filter((call) => call[0] === 'fillRect');
+    // One black fill and one mask per draw: no camera frame reaches the canvas.
+    expect(draws.length).toBeGreaterThan(0);
+    expect(fills.length).toBe(draws.length);
+  });
+
+  it('never applies to raw mode', () => {
+    mount(cameraState('raw'), new FakeSegmenter(), 'matte');
+    act(() => frames.tick());
+
+    expect(layerCalls().some((call) => call[0] === 'fillRect')).toBe(false);
+  });
+
+  it('is not drawn by default', async () => {
+    const segmenter = new FakeSegmenter();
+    const { statuses } = mount(cameraState('segmented'), segmenter);
+    await firstMask(segmenter, statuses);
+
+    expect(layerCalls().some((call) => call[0] === 'fillRect')).toBe(false);
   });
 });
