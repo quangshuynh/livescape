@@ -1,0 +1,156 @@
+/* The renderer is a full-bleed surface: no chrome, no scrollbars, nothing that
+   would look out of place inside an OBS Browser Source. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#livescape-root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #05070d;
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: #e8eefc;
+}
+
+.stage {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.scene-layer {
+  position: absolute;
+  inset: 0;
+  will-change: opacity;
+}
+
+.scene-layer--in {
+  animation-name: livescape-fade-in;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  animation-fill-mode: both;
+}
+
+.scene-layer--out {
+  animation-name: livescape-fade-out;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  animation-fill-mode: both;
+  z-index: 1;
+}
+
+.scene-layer--in {
+  z-index: 2;
+}
+
+@keyframes livescape-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(1.015);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes livescape-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.scene__sky {
+  position: absolute;
+  inset: 0;
+}
+
+.stage__vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.45) 100%);
+}
+
+.effects-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Debug overlay: only mounted when the renderer is opened with `?debug=1`. */
+.debug-overlay {
+  position: absolute;
+  z-index: 5;
+  top: 16px;
+  left: 16px;
+  min-width: 220px;
+  padding: 12px 14px;
+  border: 1px solid rgba(148, 173, 224, 0.25);
+  border-radius: 10px;
+  background: rgba(6, 10, 20, 0.72);
+  backdrop-filter: blur(6px);
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+}
+
+.debug-overlay__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.debug-overlay__row--muted {
+  margin-top: 4px;
+  color: rgba(214, 226, 250, 0.55);
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.debug-overlay__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f0b429;
+}
+
+.debug-overlay__dot--open {
+  background: #3ddc97;
+}
+
+.debug-overlay__dot--reconnecting {
+  background: #ff6b6b;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-layer--in,
+  .scene-layer--out {
+    animation-duration: 1ms !important;
+  }
+}

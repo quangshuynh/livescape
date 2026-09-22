@@ -1,0 +1,421 @@
+/* Scene ambience. Everything here is generated with CSS/SVG -- no third-party
+   artwork and no externally hosted assets. */
+
+/* ---------------------------------------------------------------- city --- */
+
+.scene__sky--city {
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 100%, rgba(255, 138, 76, 0.22), transparent 70%),
+    linear-gradient(180deg, #060a18 0%, #0d1430 42%, #1d2247 72%, #3a2a4d 100%);
+}
+
+.city__glow {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 120%;
+  height: 46%;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at 50% 100%, rgba(255, 173, 96, 0.28), transparent 68%);
+  animation: city-glow-pulse 12s ease-in-out infinite;
+}
+
+.city__layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.city__layer--far {
+  opacity: 0.75;
+  animation: city-drift-far 120s linear infinite;
+}
+
+.city__layer--near {
+  animation: city-drift-near 80s linear infinite;
+}
+
+.city__building {
+  fill: #0a0f22;
+}
+
+.city__building--far {
+  fill: #121a38;
+}
+
+.city__window {
+  fill: #ffd08a;
+  animation: city-window-flicker 9s ease-in-out infinite;
+}
+
+.city__window--far {
+  fill: #9fc4ff;
+  opacity: 0.55;
+}
+
+.city__street {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 12%;
+  background: linear-gradient(180deg, rgba(8, 10, 22, 0.1), rgba(4, 6, 14, 0.95));
+  overflow: hidden;
+}
+
+.city__traffic {
+  position: absolute;
+  bottom: 22%;
+  width: 22%;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(255, 196, 128, 0.85), transparent);
+  filter: blur(1px);
+}
+
+.city__traffic--a {
+  animation: city-traffic-right 9s linear infinite;
+}
+
+.city__traffic--b {
+  bottom: 48%;
+  background: linear-gradient(90deg, transparent, rgba(255, 106, 106, 0.7), transparent);
+  animation: city-traffic-left 13s linear infinite;
+}
+
+@keyframes city-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes city-drift-far {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-3%, 0, 0);
+  }
+}
+
+@keyframes city-drift-near {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-5%, 0, 0);
+  }
+}
+
+@keyframes city-window-flicker {
+  0%,
+  92%,
+  100% {
+    opacity: 0.92;
+  }
+  94% {
+    opacity: 0.25;
+  }
+  96% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes city-traffic-right {
+  from {
+    transform: translateX(-30vw);
+  }
+  to {
+    transform: translateX(130vw);
+  }
+}
+
+@keyframes city-traffic-left {
+  from {
+    transform: translateX(130vw);
+  }
+  to {
+    transform: translateX(-30vw);
+  }
+}
+
+/* -------------------------------------------------------------- forest --- */
+
+.scene__sky--forest {
+  background:
+    radial-gradient(ellipse 50% 40% at 72% 12%, rgba(255, 232, 173, 0.55), transparent 62%),
+    linear-gradient(180deg, #9fd0d8 0%, #cfe3cd 38%, #dfe6c4 62%, #7fa267 100%);
+}
+
+.forest__sun {
+  position: absolute;
+  top: 8%;
+  left: 70%;
+  width: 16vw;
+  height: 16vw;
+  max-width: 260px;
+  max-height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 248, 214, 0.95), rgba(255, 236, 170, 0) 70%);
+  animation: forest-sun-breathe 16s ease-in-out infinite;
+}
+
+.forest__layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.forest__layer--far {
+  animation: forest-sway-slow 90s ease-in-out infinite alternate;
+}
+
+.forest__layer--mid {
+  animation: forest-sway-slow 64s ease-in-out infinite alternate-reverse;
+}
+
+.forest__layer--near {
+  animation: forest-sway-slow 48s ease-in-out infinite alternate;
+}
+
+.forest__tree--far {
+  fill: #9bb98c;
+  opacity: 0.75;
+}
+
+.forest__tree--mid {
+  fill: #5f8a5c;
+}
+
+.forest__tree--near {
+  fill: #2f5138;
+}
+
+.forest__mist {
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  bottom: 22%;
+  height: 26%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(233, 244, 235, 0.55));
+  filter: blur(10px);
+  animation: forest-mist-drift 40s ease-in-out infinite alternate;
+}
+
+.forest__shafts {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.forest__shaft {
+  position: absolute;
+  top: -20%;
+  width: 12vw;
+  height: 140%;
+  background: linear-gradient(180deg, rgba(255, 246, 209, 0.5), rgba(255, 246, 209, 0));
+  transform: rotate(14deg);
+  filter: blur(6px);
+  animation: forest-shaft-pulse 11s ease-in-out infinite;
+}
+
+.forest__shaft--a {
+  left: 58%;
+}
+
+.forest__shaft--b {
+  left: 70%;
+  width: 7vw;
+  animation-delay: -4s;
+}
+
+.forest__shaft--c {
+  left: 44%;
+  width: 5vw;
+  animation-delay: -7.5s;
+}
+
+.forest__floor {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 10%;
+  background: linear-gradient(180deg, rgba(47, 81, 56, 0.2), #1f3626);
+}
+
+@keyframes forest-sun-breathe {
+  0%,
+  100% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes forest-sway-slow {
+  from {
+    transform: translate3d(-1.2%, 0, 0);
+  }
+  to {
+    transform: translate3d(1.2%, 0, 0);
+  }
+}
+
+@keyframes forest-mist-drift {
+  from {
+    transform: translate3d(-3%, 0, 0);
+    opacity: 0.6;
+  }
+  to {
+    transform: translate3d(3%, 0, 0);
+    opacity: 0.95;
+  }
+}
+
+@keyframes forest-shaft-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* --------------------------------------------------------------- space --- */
+
+.scene__sky--space {
+  background:
+    radial-gradient(ellipse 60% 50% at 20% 25%, rgba(86, 52, 168, 0.35), transparent 65%),
+    radial-gradient(ellipse 50% 40% at 80% 70%, rgba(24, 96, 138, 0.35), transparent 60%),
+    linear-gradient(180deg, #02030a 0%, #060a1c 55%, #020309 100%);
+}
+
+.space__stars {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.space__star {
+  fill: #dfe8ff;
+  animation-name: space-twinkle;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+
+.space__star--bright {
+  fill: #ffffff;
+  filter: drop-shadow(0 0 4px rgba(190, 214, 255, 0.9));
+}
+
+.space__nebula {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(46px);
+}
+
+.space__nebula--violet {
+  top: 8%;
+  left: 6%;
+  width: 46vw;
+  height: 46vw;
+  background: radial-gradient(circle, rgba(129, 77, 214, 0.42), transparent 68%);
+  animation: space-nebula-drift-a 70s ease-in-out infinite alternate;
+}
+
+.space__nebula--cyan {
+  bottom: 4%;
+  right: 4%;
+  width: 40vw;
+  height: 40vw;
+  background: radial-gradient(circle, rgba(46, 156, 202, 0.35), transparent 66%);
+  animation: space-nebula-drift-b 90s ease-in-out infinite alternate;
+}
+
+.space__planet {
+  position: absolute;
+  right: 12%;
+  top: 16%;
+  width: 12vw;
+  height: 12vw;
+  max-width: 190px;
+  max-height: 190px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 30%, #6f7fb5, #2b3157 58%, #14162b 100%);
+  box-shadow: 0 0 46px rgba(118, 142, 220, 0.25);
+  animation: space-planet-float 28s ease-in-out infinite alternate;
+}
+
+@keyframes space-twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes space-nebula-drift-a {
+  from {
+    transform: translate3d(-2%, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(4%, 3%, 0) scale(1.08);
+  }
+}
+
+@keyframes space-nebula-drift-b {
+  from {
+    transform: translate3d(2%, 1%, 0) scale(1.05);
+  }
+  to {
+    transform: translate3d(-3%, -2%, 0) scale(1);
+  }
+}
+
+@keyframes space-planet-float {
+  from {
+    transform: translate3d(0, -1.5%, 0);
+  }
+  to {
+    transform: translate3d(0, 2%, 0);
+  }
+}
+
+/* Viewers who ask for reduced motion get the same scenes, held still. */
+@media (prefers-reduced-motion: reduce) {
+  .city__glow,
+  .city__layer--far,
+  .city__layer--near,
+  .city__window,
+  .city__traffic,
+  .forest__sun,
+  .forest__layer--far,
+  .forest__layer--mid,
+  .forest__layer--near,
+  .forest__mist,
+  .forest__shaft,
+  .space__star,
+  .space__nebula,
+  .space__planet {
+    animation: none !important;
+  }
+
+  .space__star {
+    opacity: 0.8;
+  }
+}
