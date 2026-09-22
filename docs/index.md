@@ -33,8 +33,12 @@ control panel → FastAPI event server → WebSocket → renderer → OBS
   and re-syncs when it comes back.
 * [Camera compositing](camera.md): the renderer can open a local camera,
   separate you from your physical background on your own machine, and draw you
-  between the scene's background and foreground effect layers. Camera frames
+  between the parts of the scene behind you and in front of you. Camera frames
   never leave the renderer tab.
+* [Layered scene composition](scenes-and-effects.md#composition): scenes place
+  artwork and autonomous actors on planes behind and in front of the subject.
+  Roadside Workshop shows traffic passing behind you and leaves blowing past in
+  front.
 
 No livestream platform integration, AI, audio, persistence or authentication
 exists yet. See the [roadmap](roadmap.md).

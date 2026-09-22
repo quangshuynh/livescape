@@ -40,6 +40,11 @@ Run them individually with `npm run dev:renderer` and `npm run dev:panel`.
 Open the control panel and press **Forest**. The renderer crossfades within a
 second. Press **Rain**, then **Clear effects**.
 
+Press **Roadside Workshop** and leave it running for a minute: traffic,
+pedestrians and the occasional gust of leaves arrive on their own. Open the
+renderer with `?setup=1` in a second tab to see that tab's live actor counts
+and spawn an actor there on demand.
+
 You can also drive the server directly:
 
 ```bash

@@ -45,9 +45,11 @@ control panel → FastAPI event server → WebSocket → renderer → visible ch
 
 What exists and is verified:
 
-* three scenes (city, forest, space) and three effects (rain, snow, fireworks),
-  drawn with CSS, SVG and Canvas, using no third-party artwork and no external
-  assets;
+* four scenes (City, Forest, Space and Roadside Workshop) and three effects
+  (rain, snow, fireworks), drawn with CSS, SVG and Canvas, using no third-party
+  artwork and no external assets;
+* **layered scene composition**: scenes place artwork and seeded, autonomous
+  actors (traffic, passers-by, blown leaves) behind or in front of you;
 * a versioned, typed, validated event protocol with an allowlist registry;
 * a local FastAPI event server with health, registry and event endpoints, plus
   WebSocket broadcast;
@@ -57,7 +59,7 @@ What exists and is verified:
   and re-syncs when it comes back;
 * **camera compositing**: the renderer opens a local camera, removes your
   physical background with a segmentation model that runs on your machine, and
-  draws you between the scene's background and foreground effect planes.
+  draws you between the parts of the scene behind you and in front of you.
 
 What does **not** exist yet: any livestream platform integration, AI, audio,
 persistence or authentication. See [Roadmap](#roadmap). Nothing in this
