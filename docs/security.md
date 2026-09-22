@@ -50,10 +50,11 @@ the boundary precisely and records how it was verified.
 
 !!! warning "Allowing the camera inside OBS has a cost"
 
-    An OBS Browser Source refuses `getUserMedia` by default. The only way to
-    allow it is to start OBS with `--use-fake-ui-for-media-stream`, which
-    auto-accepts camera and microphone requests for **every** Browser Source in
-    that instance, with no prompt. Only do that if you trust every Browser
+    An OBS Browser Source refuses `getUserMedia` by default. The tested way to
+    allow it is to start OBS with `--use-fake-ui-for-media-stream` (on macOS,
+    together with `--enable-media-stream`), which auto-accepts camera and
+    microphone requests for **every** Browser Source in that instance, with no
+    prompt. Only do that if you trust every Browser
     Source URL in your scene collection.
 
 ## Data and telemetry

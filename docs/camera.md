@@ -141,6 +141,31 @@ The deciding factors:
 
 Popularity was not a factor; licence, maintenance and self-hostability were.
 
+### Which MediaPipe model
+
+MediaPipe publishes several segmentation models for the same runtime. The
+figures below are Google's published latencies (Pixel 6); the sizes are the
+published `.tflite` files.
+
+| Model | Input | Size | Latency, CPU / GPU | Fit for LiveScape |
+| --- | --- | --- | --- | --- |
+| **SelfieSegmenter, square** (used) | 256×256 | 244 KB | 33 ms / 35 ms | Person/background confidence, built for real-time video |
+| SelfieSegmenter, landscape | 144×256 | 250 KB | 34 ms / 34 ms | Same family; lower vertical resolution for a 16:9 camera |
+| SelfieMulticlass | 256×256 | 16.4 MB | 218 ms / 71 ms | Hair, skin and clothing classes, but about twice the GPU cost and 67 times the download |
+| HairSegmenter | 512×512 | not checked | 58 ms / 52 ms | Hair only, not a person matte |
+| DeepLab-v3 | 257×257 | not checked | 124 ms / 103 ms | General-purpose, not tuned for people |
+
+The square SelfieSegmenter stays. The background flashing around moving
+hands seen in real-camera testing has a cause in the pipeline rather than the
+model (see [The matte pipeline](#the-matte-pipeline)), and the multiclass
+model's cost would land on the renderer's main thread. It is the natural candidate to
+revisit once inference runs in a worker.
+
+Outside MediaPipe, the better video-matting models remain difficult to
+redistribute (RobustVideoMatting is GPL-3.0, MODNet's weights are
+research-restricted) and would add ONNX Runtime Web, a much larger runtime,
+without a model that fixes the problems above.
+
 ### The segmenter boundary
 
 The renderer talks to a small local interface, not to MediaPipe:
@@ -217,106 +242,198 @@ That split is what makes a person look like they are standing *inside* the
 scene rather than pasted on top of it. With the camera off the subject plane is
 empty and the result is unchanged.
 
-Background removal is a canvas composite, not a per-pixel loop. The camera
-frame is drawn, then the mask is drawn over it with `destination-in`, which
-keeps only the covered pixels. The mask is much smaller than the stage, so the
-browser's bilinear upscale softens the edge for free.
+Background removal is a canvas composite, not a per-pixel loop over the
+stage. The camera frame is drawn, then the matte is drawn over it with
+`destination-in`, which keeps only the covered pixels. The matte is much
+smaller than the stage; the browser's bilinear upscale softens its edge.
 
-### Mask shaping
+## The matte pipeline
+
+```text
+camera frame
+  → held (a VideoFrame, or a canvas copy) and scaled to the segmentation input
+  → MediaPipe SelfieSegmenter (256×256 inside the model)
+  → confidence mask at the segmentation input size
+  → temporal filter (motion-gated)
+  → edge refinement against the same frame (guided filter)
+  → threshold ramp with hysteresis
+  → matte canvas
+  → drawn over the *held* frame, not the live video
+```
+
+### Frame and mask synchronisation
+
+A mask describes the frame it was computed from. Drawing the live video under
+whichever mask finished last means the matte describes where a moving hand
+*was* while the frame shows where it *is*: the room shows through on one side
+of the hand and the hand is clipped on the other, until the next mask catches
+up.
+
+So in Segmented mode the subject layer never draws the live video. The frame
+handed to the segmenter is held, and drawn only once its own mask arrives; the
+previous frame/mask pair stays on screen meanwhile. With MediaPipe's
+synchronous backend the mask arrives within the same animation frame, so the
+subject is late by roughly one inference (about 20 ms on the machine measured
+below). The diagnostics report that delay as **Mask age**.
+
+Where WebCodecs is available the held frame is a `VideoFrame`, a reference to
+the camera's own buffer, so holding it copies nothing. At most two frames are
+held at any time (one waiting for its mask, one on screen) and each is closed
+as soon as it is replaced.
+
+The subject therefore moves at the segmentation rate, not the camera rate.
+Balanced and Quality segment every frame of a 30 FPS camera on the machine
+measured below; Performance deliberately does not.
+
+### Temporal filter
+
+A fixed-weight moving average trades flicker for a ghost: the pixels a hand
+has just left keep saying "person" for several frames. LiveScape's filter
+weighs each pixel by how much it changed:
+
+* a small change (under 0.08 in confidence) is treated as noise and smoothed
+  with the full **Temporal smoothing** weight;
+* a large change (over 0.35) is treated as motion and passes through in a
+  single frame, in either direction;
+* in between, the weight falls off smoothly.
+
+A still hair edge is steadied; a hand arriving or leaving is not delayed. The
+filter holds one frame of history and resets on a camera switch or preset
+change.
+
+### Edge refinement
+
+The model sees the frame at 256×256, so its edge is a smooth curve a few
+pixels away from where hair, a sleeve or a finger actually ends. Edge
+refinement is a guided filter using the frame's own luminance: where the
+matte's soft edge straddles a real edge in the image, the matte is pulled onto
+that edge and sharpened; where the image is flat, the matte is only smoothed,
+which the threshold ramp re-sharpens into a cleaner contour. It cannot create
+foreground far from where the model placed it.
+
+It runs on the CPU at the mask's resolution, fitted at half resolution and
+applied at full resolution, which costs about 2 ms at 320×180. It works on
+brightness only, so an edge between two different colours of the same
+brightness is not refined.
+
+### Threshold, softness and hysteresis
+
+Confidence becomes coverage through a smoothstep ramp centred on the
+threshold. The threshold also leans slightly (by 0.04) towards each pixel's
+previous state, so a still edge whose confidence wobbles around the threshold
+does not flip every frame. A confident change still crosses it immediately.
+
+### Controls
 
 | Control | Default | Effect |
 | --- | --- | --- |
+| Quality | Balanced | See [Quality presets](#quality-presets). |
+| Edge refinement | on | Guided-filter refinement against the camera frame. Not available in Performance. |
 | Edge threshold | 0.50 | Confidence at which a pixel is half opaque. |
 | Edge softness | 0.18 | Width of the ramp around the threshold. A hard cut makes the edge crawl frame to frame. |
-| Edge feather | 2 px | Blur applied to the mask while compositing. |
-| Temporal smoothing | 0.25 | How much of the previous mask is kept. |
+| Edge feather | 2 px | Blur applied to the matte while compositing. |
+| Temporal smoothing | 0.50 | How much of the previous matte a *still* pixel keeps. Motion bypasses it. |
+| Show matte | off | Setup panel only: draws the matte, white subject on black, instead of the subject. |
 
-Temporal smoothing is deliberately low. It steadies a flickering edge, but it
-also trails behind a moving arm, and a ghost following you around is worse than
-a slightly noisy outline.
+**Show matte** is an inspection aid. It exists only in the page that has
+`?setup=1`, so a Browser Source on the bare renderer URL cannot show it.
 
 ## The segmentation scheduler
 
-The renderer draws far more often than it can segment. The scheduler never
-queues: a frame offered while inference is running is dropped and counted, and
-the next frame offered after inference finishes is by definition the current
-one. The mask can be a frame or two old; it can never fall further behind than
-one inference, however slow the backend is.
+The scheduler never queues. At most one inference runs at a time, and a new
+one starts only when the camera has delivered a frame that has not been
+segmented yet (reported by `requestVideoFrameCallback`; browsers without it
+fall back to the animation frame and the rate limit). If the camera delivers
+a frame while inference is running, or before the rate limit allows another
+start, that frame is not stored. The next animation frame simply offers
+whatever frame is current by then. Latency is bounded by one inference and
+stale frames never accumulate.
 
-A separate minimum interval keeps inference from running on every animation
-frame. Those two counters are reported separately in the diagnostics: **Skipped**
-is backlog pressure, **Throttled** is the rate limit doing its job.
+Two limits apply:
 
-An isolated inference failure is counted and ignored. Five consecutive failures
-mark the backend as unusable, and the panel says so; the renderer keeps drawing
-the scene throughout.
+* a **minimum interval** between inference starts, per preset;
+* a **duty cycle**: if a mask costs more (inference plus matte processing)
+  than the preset's share of wall-clock time allows, the interval stretches.
+  On a slow machine or under heavy GPU load, the subject then updates less
+  often instead of dragging the whole page's frame rate down.
+
+**Skipped** counts offers declined because inference was running, and
+**Throttled** counts offers declined by the rate limit. Both are expected to
+rise steadily; they are not errors. **Stale** counts masks thrown away because
+their frame was no longer the one waiting, which should stay at zero with the
+MediaPipe backend.
+
+An isolated inference failure is counted and ignored. Five consecutive
+failures mark the backend as unusable, and the panel says so; the renderer
+keeps drawing the scene throughout.
 
 ## Performance
 
-Diagnostics are in the setup panel and in the `?debug=1` overlay. They report
-the camera resolution, the segmentation input size, render FPS, segmentation
-FPS, inference time, masks produced, and skipped and throttled frames.
-
-The figures below were measured on one machine (Windows 11, 8 logical cores,
-WebGL GPU delegate). They are evidence that the design works, not a promise
-about your hardware.
-
-**Inference cost is almost flat across input sizes**, because the model
-resamples whatever it is given to 256×256 internally:
-
-| Segmentation input | Inference (median) | Mask shaping | Total per mask |
-| --- | --- | --- | --- |
-| 192×108 | 3.2 ms | 0.4 ms | ~3.6 ms |
-| 256×144 | 3.0 ms | 0.8 ms | ~3.8 ms |
-| 384×216 | 3.0 ms | 1.9 ms | ~4.9 ms |
-| 640×360 | 3.7 ms | 5.2 ms | ~8.9 ms |
-| 1280×720 | 5.0 ms | 21.2 ms | ~26 ms |
-
-The real cost of a larger input is not inference; it is shaping the returned
-mask, which scales with its area. That is why the presets stay well below
-640×360.
+Diagnostics are in the setup panel (and a subset in the `?debug=1` overlay):
+camera resolution and delivery rate, render FPS, quality preset, segmentation
+input and mask size, whether edges were refined, backend, segmentation FPS,
+inference time, matte processing time, mask age, and the skipped, throttled,
+stale and error counters.
 
 ### Quality presets
 
-| Preset | Segmentation input | Minimum inference interval |
-| --- | --- | --- |
-| Performance | longest side 192 | 66 ms |
-| Balanced (default) | longest side 256 | 40 ms |
-| Quality | longest side 384 | 25 ms |
+| | Performance | Balanced (default) | Quality |
+| --- | --- | --- | --- |
+| Segmentation input (longest side) | 256 | 320 | 384 |
+| Mask on a 1280×720 camera | 256×144 | 320×180 | 384×216 |
+| Minimum interval | 45 ms | 20 ms | 16 ms |
+| Duty cycle cap | 50% | 80% | 90% |
+| Edge refinement radius | off | 1 | 2 |
+| Typical subject rate, 30 FPS camera | about 20 FPS | 30 FPS | 30 FPS |
 
-The segmentation input is the camera's aspect ratio with its longest side
-clamped, so a 1280×720 camera on Balanced is segmented at 256×144.
+The model always runs at 256×256, and MediaPipe returns the mask at the input
+size, so the input size sets the resolution the matte is processed and refined
+at, not what the model sees. Inference cost is nearly flat across these sizes;
+matte processing grows with the mask's area.
 
-### Measured in an OBS Browser Source
+Balanced is the default. Quality refines over a wider window at a higher
+matte resolution, for a still desk setup on a machine with headroom.
+Performance is for machines where inference itself is slow; its subject moves
+at about 20 FPS.
 
-Running in OBS 32.2.1 with a 1280×720 source, the Balanced preset, a scene
-change and two effects active:
+### Measured
 
-```text
-Camera:        1280x720
-Backend:       mediapipe-selfie/GPU
-Render:        60 FPS
-Segmentation:  256x144 at 20 FPS
-Inference:     6.2 ms
-Skipped:       0
-Throttled:     203
-Errors:        0
-```
+Apple M1, macOS 26, Brave 1.95 (Chromium 153) headless with the Metal (ANGLE)
+GPU, Chromium's synthetic 1280×720 camera at 30 FPS, 1920×1080 page, Roadside
+Workshop, setup panel open, averaged over ten seconds per row. The synthetic
+camera shows no person, but inference and matte processing costs do not depend
+on image content.
 
-Render frame rate held at 60 while segmenting. Skipped stayed at zero, which is
-expected: MediaPipe's `segmentForVideo` is synchronous, so inference completes
-within the animation frame that submitted it and no backlog can form. The
-scheduler's guard matters for asynchronous backends, and it is tested as such.
+| Balanced | Render | Segmentation | Inference | Matte processing | Mask age | Browser CPU |
+| --- | --- | --- | --- | --- | --- | --- |
+| Roadside Workshop | 60 FPS | 27 FPS | 22 ms | 3.8 ms | 20 ms | 63% |
+| + rain | 60 FPS | 30 FPS | 17 ms | 3.0 ms | 20 ms | 76% |
+| + rain + fireworks | 60 FPS | 30 FPS | 17 ms | 3.0 ms | 20 ms | 83% |
 
-The flip side of that synchronicity is that inference runs **on the main
-thread**. At roughly 6 ms, twenty times a second, that was not enough to drop
-frames here, but it is the first thing to move if it ever is. See
-[Limitations](#limitations).
+| All three effects | Render | Segmentation | Inference | Matte processing | Mask age |
+| --- | --- | --- | --- | --- | --- |
+| Performance | 60 FPS | 20 FPS | 13 ms | 0.5 ms | 14 ms |
+| Balanced | 60 FPS | 30 FPS | 17 ms | 3.0 ms | 20 ms |
+| Quality | 60 FPS | 30 FPS | 17 ms | 4.4 ms | 21 ms |
+
+"Inference" includes MediaPipe reading the mask back from the GPU, which is
+where most of its time goes. "Browser CPU" is the sum over the browser's
+processes as reported by `ps`, where 100% is one core. These are figures
+from one machine and a synthetic camera; they are not a promise about yours,
+and OBS was not benchmarked with this configuration.
+
+Two approaches were measured and rejected because they cost frame rate on
+this machine: upscaling the matte with `imageSmoothingQuality = "high"`
+(render fell to about 12 FPS), and redrawing the subject on every animation
+frame when nothing had changed (it is now redrawn only when a new frame/mask
+pair arrives or a setting changes).
 
 ## Hardware considerations
 
-* A GPU helps a lot. The WebGL delegate measured about 4 ms per inference in
-  OBS against about 11 ms for the CPU delegate.
+* A GPU helps. On Windows in OBS the WebGL delegate measured about 4 ms per
+  inference against about 11 ms for the CPU delegate. On the Apple M1 above
+  the two were within measurement noise of each other, because both pay for a
+  GPU readback.
 * The renderer asks for 1280×720 at 30 FPS and uses whatever the device
   actually gives it, which the diagnostics report.
 * If the GPU delegate cannot be created, LiveScape falls back to the CPU
@@ -334,6 +451,10 @@ Chromium-based browser:
   160 ms to 200 ms, cold.
 * `segmentForVideo` rejects a timestamp that does not increase. The scheduler
   forces monotonicity, which is why device switches and clock resets are safe.
+* `requestVideoFrameCallback` and WebCodecs `VideoFrame` are both available in
+  current Chromium, so frames are segmented once each and held without a copy.
+  Where either is missing the renderer falls back to the animation frame and a
+  canvas copy.
 
 ## Using the camera inside OBS
 
@@ -344,20 +465,35 @@ This is the part that needs care.
 show a permission prompt. Device *enumeration* works and returns full labels;
 only capture is refused.
 
-LiveScape handles that cleanly — the scene, effects and event stream all keep
-working, and the panel says permission is blocked — but the camera cannot be
-composited in OBS until permission is granted.
+LiveScape handles that cleanly (the scene, effects and event stream keep
+working and the panel says permission is blocked), but the camera cannot be
+composited in OBS until capture is allowed. There is no setting for this in
+the OBS interface; OBS has to be started with Chromium command-line flags.
 
-To grant it, OBS must be started with a Chromium flag:
+**macOS.** The configuration validated with a real camera is:
+
+```bash
+/Applications/OBS.app/Contents/MacOS/OBS --enable-media-stream --use-fake-ui-for-media-stream
+```
+
+`--use-fake-ui-for-media-stream` answers the embedded browser's (CEF's) media
+permission request automatically, which is what a Browser Source cannot do on
+its own. It does not grant anything at the operating-system level: OBS must
+still be allowed to use the camera in **System Settings → Privacy & Security →
+Camera**. `--enable-media-stream` was part of the validated command line; it
+has not been tested whether a given OBS version needs it.
+
+**Windows.** Starting OBS with the fake-UI flag was sufficient on the
+Windows machine where the pipeline was first verified:
 
 ```text
 obs64.exe --use-fake-ui-for-media-stream
 ```
 
-With that flag, `getUserMedia` succeeds inside the Browser Source and the whole
-pipeline runs. There is no equivalent setting in the OBS interface.
+These are the configurations that have been tested. Other OBS versions and
+platforms may behave differently.
 
-!!! danger "What that flag actually does"
+!!! danger "What the fake-UI flag actually does"
 
     `--use-fake-ui-for-media-stream` auto-accepts camera and microphone
     requests for **every** Browser Source in that OBS instance, with no prompt.
@@ -368,6 +504,13 @@ pipeline runs. There is no equivalent setting in the OBS interface.
     Only use it if you trust every Browser Source URL in your collection.
 
 ### Verified in OBS
+
+With a physical camera and a real person, on macOS with OBS Studio 32.2.2
+started as above: the camera opened inside the Browser Source; Raw and
+Segmented modes both ran; scenes switched while the camera stayed active; and
+Roadside Workshop composited around the subject. That validation predates the
+current matte pipeline, which has been benchmarked in a Chromium browser but
+not yet re-run in OBS.
 
 Exercised in OBS Studio 32.2.1 (obs-browser 2.26.9, CEF 127.0.6533.120) with
 the built renderer served over HTTP:
@@ -387,26 +530,27 @@ the built renderer served over HTTP:
 
 A webcam is a shared resource, and not every driver allows two readers.
 
-If LiveScape holds a webcam for segmentation, **do not also add an OBS Video
-Capture Device source for the same physical webcam.** Many UVC webcams allow
-only one consumer; the second one to ask gets `NotReadableError`, which
+If LiveScape owns a webcam for segmentation, **do not also add an OBS Video
+Capture Device source for the same physical webcam**, unless you know your
+camera and driver support several simultaneous consumers. Many UVC webcams
+allow only one; the second one to ask gets `NotReadableError`, which
 LiveScape reports as "Camera in use elsewhere". Which application wins depends
 on the driver and on start order, so it is not something to rely on either way.
 
 !!! note "What was and was not tested here"
 
     The two-consumer case was exercised against the **OBS Virtual Camera**,
-    which is a software DirectShow filter and does permit several simultaneous
-    readers. It is not evidence about physical webcams, which commonly do not.
-    No physical webcam was available on the machine this was verified on.
+    which permits several simultaneous readers. Two consumers of one physical
+    webcam have not been tested.
 
 ## Troubleshooting
 
 **"Permission blocked" in a normal browser.** Allow the camera for the
 renderer's origin in site settings, then press **Try again**.
 
-**"Permission blocked" in OBS.** Expected without
-`--use-fake-ui-for-media-stream`. See [above](#using-the-camera-inside-obs).
+**"Permission blocked" in OBS.** Expected without the launch flags. See
+[above](#using-the-camera-inside-obs). On macOS, also check that OBS is allowed
+to use the camera in System Settings.
 
 **"Camera in use elsewhere".** Something else holds the device. Close it, or
 remove the duplicate OBS Video Capture Device source.
@@ -421,10 +565,25 @@ regardless; switch to Raw if you want the camera visible meanwhile.
 the first mask arrives, and after segmentation fails. Check the Backend and
 Masks figures in the diagnostics.
 
-**The edge crawls or flickers.** Raise Edge softness or Edge feather before
-reaching for Temporal smoothing.
+**Judging the edge.** Turn on **Show matte** in the setup panel to see the
+matte itself, white subject on black. Flicker, holes and halos are much easier
+to see there than in the composite.
 
-**A ghost trails behind you.** Temporal smoothing is too high.
+**The edge crawls or flickers while you are still.** Raise Temporal smoothing
+a little, then Edge softness.
+
+**A ghost trails behind a fast movement.** Lower Temporal smoothing.
+
+**The room shows around a moving hand.** Check that Stale stays at zero and
+Mask age is around one inference. If Segmentation FPS is well below the camera
+rate, the subject is updating less often than the camera; try Balanced rather
+than Quality, or close other GPU-heavy applications.
+
+**Fingers or hair are cut off.** Lower Edge threshold slightly, and keep Edge
+refinement on. Very thin detail is below what the model resolves.
+
+**A halo of the room around you.** Raise Edge threshold slightly, or lower
+Edge feather.
 
 **Device names are blank.** The camera has not been allowed yet on this origin.
 
@@ -433,27 +592,32 @@ reaching for Temporal smoothing.
 These are real and worth knowing before you rely on this.
 
 * **Inference runs on the main thread.** MediaPipe's video API is synchronous.
-  It measured about 6 ms per inference in OBS and did not drop frames there,
-  but on slower hardware, at higher segmentation rates, or alongside heavy
-  encoding, it will compete with rendering. Moving inference to a Web Worker is
-  the clearest next improvement, and the `SubjectSegmenter` interface exists so
-  that it can be done without touching the compositor.
+  About 17 ms per mask on an Apple M1 left the page at 60 FPS in the
+  measurements above, and the duty-cycle cap protects the page on slower
+  machines by lowering the subject's frame rate. Moving inference into a Web
+  Worker is the clearest next improvement.
+* **The subject moves at the segmentation rate.** Showing each frame with its
+  own mask removes edge mismatch, but a machine that cannot segment every
+  camera frame shows a subject that updates less often than the camera.
+* **The subject is shown about one inference late.** Typically around 20 ms.
+  If you mix LiveScape's output with separately captured audio, that is the
+  offset to compensate for.
 * **Segmentation is not perfect and is not meant to be.** The model card is
   explicit that it is optimised for real-time performance and may not produce
   pixel-perfect masks, that thin features such as fingers can be missed, and
-  that low light, noise, fast motion and large occluders all degrade it. Hair,
-  glasses and chair edges are the usual places you will see that.
-* **Mask quality has not been validated against a real person.** The pipeline
-  was verified with synthetic and virtual-camera input; no physical camera was
-  available. Nothing here should be read as a claim about how good you will
-  look on camera.
+  that low light, noise, fast motion and large occluders all degrade it. Edge
+  refinement follows brightness edges only, so hair against a background of
+  similar brightness is not improved.
+* **The current matte pipeline has not been judged against a real person yet.**
+  Its costs were measured with a synthetic camera; how it looks on camera is
+  what the manual validation has to establish.
 * **The model finds people, not you specifically.** It may include other people
   in the frame, and it is not intended for subjects more than about four metres
   away.
-* **OBS needs a command-line flag** to allow capture at all, with the security
+* **OBS needs command-line flags** to allow capture at all, with the security
   consequence described above.
-* **No frame rate is guaranteed.** The numbers on this page came from one
-  machine.
+* **No frame rate is guaranteed.** The numbers on this page came from specific
+  machines.
 
 ## What LiveScape does not do with your camera
 

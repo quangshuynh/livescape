@@ -43,8 +43,8 @@ It is consumed as source, not as a build artifact: the apps import
 | `src/actors/` | The actor vocabulary and validation, the pure population model, the timer-driven engine, sprite artwork, and the plane that animates actors |
 | `src/effects/` | Canvas particle systems and the layer that drives them |
 | `src/camera/` | Camera lifecycle: pure state reducer, media access, and the hook that owns the `MediaStream` |
-| `src/segmentation/` | The `SubjectSegmenter` boundary, the MediaPipe backend, the latest-frame scheduler, mask shaping and quality presets |
-| `src/compositor/` | Stage order (`layers.ts`), framing maths, the draw routine and the camera layer |
+| `src/segmentation/` | The `SubjectSegmenter` boundary, the MediaPipe backend, the latest-frame scheduler, frame/mask synchronisation, the temporal filter, edge refinement, mask shaping and quality presets |
+| `src/compositor/` | Stage order (`layers.ts`), framing maths, the draw routine, the camera layer, camera-frame tracking and frame holding |
 | `src/setup/` | The `?setup=1` camera setup panel |
 | `src/config.ts` | Environment and URL-parameter resolution |
 | `public/models/` | The committed `.tflite` segmentation model and its notice |

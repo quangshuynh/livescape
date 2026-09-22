@@ -86,7 +86,18 @@ enumeration works and returns full labels; only capture is refused. LiveScape
 reports this as "Permission blocked" and keeps rendering scenes and effects
 normally.
 
-Granting capture requires starting OBS with a Chromium flag:
+Granting capture requires starting OBS with Chromium flags. On macOS, the
+configuration validated with a real camera is:
+
+```bash
+/Applications/OBS.app/Contents/MacOS/OBS --enable-media-stream --use-fake-ui-for-media-stream
+```
+
+OBS must also be allowed to use the camera in **System Settings → Privacy &
+Security → Camera**; the flags only answer the embedded browser's permission
+request, not the operating system's. On Windows, starting OBS with
+`--use-fake-ui-for-media-stream` was sufficient on the machine it was tested
+on:
 
 ```text
 obs64.exe --use-fake-ui-for-media-stream
@@ -103,9 +114,10 @@ Two more things worth knowing:
 * Keep the OBS Browser Source on the bare renderer URL. The camera controls
   live behind `?setup=1`, and a source pointed at that URL would put the setup
   panel on stream.
-* If LiveScape is using a webcam, avoid adding an OBS **Video Capture Device**
-  source for the same physical webcam. Many webcams allow only one consumer,
-  and the loser gets an error.
+* If LiveScape is using a webcam, do not also add an OBS **Video Capture
+  Device** source for the same physical webcam, unless your camera and driver
+  support several consumers at once. Many webcams allow only one, and the
+  loser gets an error.
 
 Full details, including what was measured and what was not, are in
 [Camera and Compositing](camera.md).

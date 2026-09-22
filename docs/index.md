@@ -50,9 +50,11 @@ exists yet. See the [Roadmap](roadmap.md).
 
 !!! note "What has been validated"
 
-    The camera pipeline has run inside an OBS Browser Source with virtual
-    camera input. Mask quality has not been judged against a real person, and
-    scene composition with actors has not yet been run in OBS. The
+    The camera pipeline has run with a physical camera and a real person, in
+    a Chromium browser and inside an OBS Browser Source on macOS, including
+    Roadside Workshop composited around the subject. The current matte
+    pipeline's costs were measured with a synthetic camera; its visual quality
+    on a real person has not been judged yet. The
     [camera](camera.md#verified-in-obs) and
     [scenes](scenes-and-effects.md#performance) pages record exactly what was
     measured.

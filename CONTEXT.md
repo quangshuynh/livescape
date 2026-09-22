@@ -34,8 +34,10 @@ apps/renderer/         React + Vite renderer; the OBS Browser Source
   src/actors/            Actor vocabulary, validation, population model, engine,
                          sprite art, ActorPlane
   src/camera/            Camera lifecycle (pure reducer, media access, hook)
-  src/segmentation/      SubjectSegmenter boundary, MediaPipe backend, scheduler
-  src/compositor/        Stage order, framing maths, draw routine, camera layer
+  src/segmentation/      SubjectSegmenter boundary, MediaPipe backend, scheduler,
+                         frame/mask sync, temporal filter, edge refinement
+  src/compositor/        Stage order, framing maths, draw routine, camera layer,
+                         camera-frame watcher, held frames
   src/setup/             The `?setup=1` camera setup panel
   public/models/         Committed `.tflite` model plus its NOTICE
   vite/mediapipeAssets.ts  Publishes the MediaPipe WASM runtime locally
@@ -212,16 +214,47 @@ SelfieSegmenter model, running mode `VIDEO`, confidence masks, GPU delegate
 falling back to CPU. `segment()` returns a borrowed buffer that is reused per
 call. Runtime and model are served from the renderer's own origin, never a CDN.
 
-**Scheduler.** `segmentation/scheduler.ts` is latest-frame: a frame offered
-while inference is running is dropped and counted as `skipped`, never queued. A
-separate `minIntervalMs` rate limit counts `throttled`. Timestamps are forced
-monotonic because MediaPipe rejects a timestamp that moves backwards. Five
-consecutive failures latch the backend as failed.
+**Scheduler.** `segmentation/scheduler.ts`: one inference at a time, never a
+queue. `submit` takes a capture callback that only runs when an inference
+actually starts; each start gets a `sequence` returned with the mask
+(`onMask(mask, {sequence,...})`, `onDrop(sequence)` for null/error). The
+interval between starts is `max(minIntervalMs, costMs / maxDutyCycle)`, where
+`costMs` is the smoothed inference-plus-`onMask` time, so a slow machine lowers
+the subject rate instead of the page rate. Declines count as `skipped` (busy)
+or `throttled`. Timestamps are forced monotonic. Five consecutive failures
+latch the backend as failed.
 
-**Compositing.** The mask is drawn over the camera frame with `destination-in`;
-the browser's bilinear upscale feathers the edge. The mask covers the whole
-frame and is drawn into the same rect as the frame, so framing changes never
-invalidate a mask.
+**Frame/mask sync.** In segmented mode the subject layer never draws the live
+video. `CameraLayer` submits only when `VideoFrameWatcher`
+(`requestVideoFrameCallback`) reports an unsegmented camera frame; the frame
+stays pending (not consumed) until an inference starts on it. The capture holds
+the frame (`compositor/heldFrame.ts`: a `VideoFrame`, or a copy into one of two
+spare canvases without WebCodecs), scales the segmenter input *from the held
+frame*, and `FrameMaskSync` (`segmentation/sync.ts`) shows that frame only when
+its own mask resolves. At most two frames are held; every one is released
+(`VideoFrame.close()`) exactly once. Results for a frame no longer waiting are
+counted `stale`. With the synchronous MediaPipe backend `onMask` draws
+immediately, so the pair lands in the same animation frame. The subject
+canvas is redrawn only when the pair, camera state, view or size changes.
+
+**Matte** (`segmentation/mask.ts`, `MaskCanvas.update`): confidence →
+`TemporalMatteFilter` (per-pixel weight falls from `smoothing` to 0 as the
+change grows from 0.08 to 0.35, so motion passes in one frame) →
+`GuidedMatteRefiner` (fast guided filter on luma of the segmenter input, read
+with `getImageData`; coefficients at half resolution) → smoothstep ramp with
+`HYSTERESIS` 0.04 towards each pixel's previous state → alpha canvas. History is
+one frame deep and dropped on reset or size change.
+
+**Quality presets** (`segmentation/quality.ts`): input 256/320/384, min
+interval 45/20/16 ms, duty cycle 0.5/0.8/0.9, refine radius 0/1/2 for
+Performance/Balanced/Quality. The model is 256×256 regardless; MediaPipe
+returns the mask at the input size.
+
+**Compositing.** The matte is drawn over the held frame with `destination-in`
+(bilinear upscale; `imageSmoothingQuality = "high"` measured catastrophically
+slow and is not used). The matte covers the whole frame and shares its rect,
+so framing never invalidates a mask. `view: 'matte'` draws the matte on black;
+`App` only passes it while `?setup=1` is mounted.
 
 **Assets.** `public/models/selfie_segmenter.tflite` (244 KB, Apache-2.0) is
 committed. The MediaPipe WASM fileset (~23 MB) is not: `vite/mediapipeAssets.ts`
@@ -250,11 +283,12 @@ Every value is also the built-in default, so no `.env` file is required.
 | `services/event-server/tests` (pytest) | 51 |
 | `packages/protocol` (Vitest) | 23 |
 | `apps/control-panel` (Vitest) | 20 |
-| `apps/renderer` (Vitest) | 281 |
+| `apps/renderer` (Vitest) | 355 |
 
 Coverage is concentrated on protocol validation, the state reducer on both
 sides, broadcast and disconnect behaviour, WebSocket handshake and `state.sync`,
-registry drift, and the camera pipeline: lifecycle, scheduler concurrency,
+registry drift, and the camera pipeline: lifecycle, scheduler concurrency and
+duty cycle, frame/mask synchronisation, temporal filter, edge refinement,
 compositing and layer order, regressions with the camera active, and scene
 composition: actor spawning, caps, lanes, cleanup, determinism, reduced motion,
 director lifecycle and stage order around the subject in raw and segmented
@@ -315,17 +349,22 @@ third-party scripts. Header logo and favicon are small derivatives of
 * No platform integration. The control panel and its simulation section are the
   only event sources.
 * Segmentation runs on the main thread. `segmentForVideo` is synchronous, so
-  inference competes with rendering. Measured ~6 ms per inference at 20/s in
-  OBS without dropped frames, but a worker is the obvious next step.
+  inference competes with rendering. Measured ~17 ms per mask (mostly GPU
+  readback) plus ~3 ms matte processing at 30/s on an Apple M1 in headless
+  Brave with page render held at 60; a worker is the obvious next step.
+* The subject is shown ~one inference late and moves at the segmentation rate.
 * An OBS Browser Source refuses `getUserMedia` unless OBS is started with
-  `--use-fake-ui-for-media-stream`, which auto-grants camera access to every
-  browser source in that instance.
+  `--use-fake-ui-for-media-stream` (validated on macOS together with
+  `--enable-media-stream`; OBS also needs the macOS Camera permission), which
+  auto-grants camera access to every browser source in that instance.
 * Actors move linearly at constant speed; effects ignore a scene's framing
   (rain falls indoors in Roadside Workshop, fireworks draw over its walls).
-* Scene composition has been exercised with synthetic camera input only; the
-  built-in browser blocks camera capture and OBS was not run. A real person
-  passing in front of Roadside Workshop traffic has not been seen yet.
-* Mask quality has not been validated against a real person. Verified with synthetic and OBS Virtual Camera input.
+* A physical camera and a real person have been run in Chromium and in OBS on
+  macOS (Raw, Segmented, scene switching, Roadside Workshop). That predates
+  the synchronised matte pipeline, whose visual quality on a real person has
+  not been judged yet; its costs were measured with Chromium's synthetic
+  camera.
+* Edge refinement is luminance-guided only.
 * No audio, no 3D, no AI.
 * Single process, single machine. No multi-operator coordination.
 
@@ -334,9 +373,8 @@ third-party scripts. Header logo and favicon are small derivatives of
 * Move segmentation inference into a Web Worker. The `SubjectSegmenter`
   interface already isolates the backend, so the compositor and camera
   lifecycle do not change.
-* Validate Roadside Workshop and mask quality with a real camera and a real
-  person, in OBS. The development machine has a camera and OBS 32; neither has
-  been run against this renderer yet.
+* Judge the synchronised matte with a real person in Brave and in OBS, using
+  the manual validation matrix, and re-measure in OBS.
 * Event-triggered scene actions through a registry-allowlisted action id that
   maps onto `ActorEngine.trigger`, without a free-form "execute" event.
 * Platform adapters as separate processes that speak the existing protocol.
