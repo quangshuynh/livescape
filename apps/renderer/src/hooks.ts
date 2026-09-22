@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import type { SceneId } from '@livescape/protocol';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+
+import { FrameRateMeter } from './compositor/stats.js';
 
 /**
- * Tracks whether the viewer asked for reduced motion. Scene ambience and
- * particle effects both tone themselves down when this is true.
+ * Tracks whether the viewer asked for reduced motion. Scene ambience, scene
+ * actors and particle effects all tone themselves down when this is true.
  */
 export function useReducedMotion(): boolean {
   const subscribe = useCallback((notify: () => void) => {
@@ -23,23 +24,32 @@ export function useReducedMotion(): boolean {
   return useSyncExternalStore(subscribe, getSnapshot, () => false);
 }
 
+/** How often the measured frame rate is pushed into React state. */
+const FRAME_RATE_REPORT_MS = 500;
+
 /**
- * Keeps the previous scene mounted for the length of the crossfade so a scene
- * change reads as a transition rather than a cut.
+ * Measures the page's own animation frame rate, for diagnostics only. It runs
+ * nothing at all unless `enabled`, so the OBS output never pays for it.
  */
-export function useSceneTransition(sceneId: SceneId, transitionMs: number): SceneId | null {
-  const [outgoing, setOutgoing] = useState<SceneId | null>(null);
-  const previousRef = useRef(sceneId);
+export function useFrameRate(enabled: boolean): number {
+  const [fps, setFps] = useState(0);
 
   useEffect(() => {
-    const previous = previousRef.current;
-    previousRef.current = sceneId;
-    if (previous === sceneId) return;
+    if (!enabled) return;
+    const meter = new FrameRateMeter();
+    let frame = 0;
+    let lastReport = 0;
+    const tick = (time: number) => {
+      const value = meter.sample(time);
+      if (time - lastReport >= FRAME_RATE_REPORT_MS) {
+        lastReport = time;
+        setFps(value);
+      }
+      frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, [enabled]);
 
-    setOutgoing(previous);
-    const timer = setTimeout(() => setOutgoing(null), Math.max(0, transitionMs));
-    return () => clearTimeout(timer);
-  }, [sceneId, transitionMs]);
-
-  return outgoing;
+  return fps;
 }

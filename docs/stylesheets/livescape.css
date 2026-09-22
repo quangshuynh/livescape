@@ -95,3 +95,34 @@
 .md-header {
   box-shadow: inset 0 -2px 0 0 var(--livescape-cyan);
 }
+
+/* Accessibility ---------------------------------------------------------- */
+
+/* A keyboard focus ring that reads on both schemes, including against the
+   dark header. */
+.md-typeset a:focus-visible,
+.md-nav__link:focus-visible,
+.md-header :focus-visible,
+.md-tabs__link:focus-visible,
+.md-search__input:focus-visible,
+.md-clipboard:focus-visible {
+  outline: 2px solid var(--md-accent-fg-color);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.md-header :focus-visible,
+.md-tabs__link:focus-visible {
+  outline-color: var(--livescape-cyan-bright);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

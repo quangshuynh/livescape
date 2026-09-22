@@ -15,6 +15,11 @@
       "id": "space",
       "label": "Space",
       "description": "Deep field starscape with a slow nebula gradient."
+    },
+    {
+      "id": "roadside-workshop",
+      "label": "Roadside Workshop",
+      "description": "Open workshop at golden hour with traffic and passers-by on the street outside."
     }
   ],
   "effects": [

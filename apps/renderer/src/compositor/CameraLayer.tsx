@@ -8,6 +8,7 @@ import { EMPTY_SEGMENTATION_STATS, SegmentationScheduler } from '../segmentation
 import type { SegmenterFactory } from '../segmentation/types.js';
 import { drawCameraFrame } from './draw.js';
 import { computeFrameRect, segmentationInputSize } from './framing.js';
+import { stageZIndex } from './layers.js';
 import { FrameRateMeter, type CompositorStats } from './stats.js';
 
 /** How often diagnostics are pushed upwards, in milliseconds. */
@@ -30,7 +31,7 @@ export interface CameraLayerProps {
 
 /**
  * The subject layer: a hidden video element feeding one canvas that sits
- * between the background and foreground effect planes.
+ * between everything behind the subject and everything in front of it.
  *
  * Frames go from the camera to this canvas and nowhere else. Nothing here
  * posts, uploads, records or persists a frame.
@@ -247,7 +248,14 @@ export function CameraLayer({
         playsInline
         aria-hidden="true"
       />
-      {active ? <canvas ref={canvasRef} className="camera-layer" aria-hidden="true" /> : null}
+      {active ? (
+        <canvas
+          ref={canvasRef}
+          className="camera-layer"
+          aria-hidden="true"
+          style={{ zIndex: stageZIndex('subject') }}
+        />
+      ) : null}
     </>
   );
 }

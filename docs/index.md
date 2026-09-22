@@ -1,43 +1,61 @@
 # LiveScape
 
 Local-first interactive scene engine for livestreams. LiveScape draws a dynamic
-environment, reacts to events in real time, and is designed to be dropped into
-OBS as a Browser Source.
+environment around a live camera feed, reacts to events in real time, and is
+designed to be dropped into OBS as a Browser Source.
 
-Stream overlays are usually either static images or a pile of platform-specific
-scripts glued to one service's API. LiveScape splits those two concerns apart:
+Everything runs on your own machine. The event server binds to loopback, no
+internet connection is needed, and camera frames never leave the renderer tab.
 
-* a **renderer** that knows how to draw scenes and effects, and nothing else;
-* an **event protocol** that any source can speak, whether that is an operator
-  pressing a button today or a platform adapter tomorrow.
+## How it fits together
 
-The renderer has no idea what TikTok is, and never will. Platform adapters
-translate external events into normalized LiveScape events, and everything
-below that boundary stays the same.
-
-## What it does today
-
-```text
-control panel → FastAPI event server → WebSocket → renderer → OBS
+```mermaid
+flowchart LR
+    panel["Control panel"] -->|POST /api/events| server["Event server<br/>(FastAPI)"]
+    server -->|WebSocket /ws| renderer["Renderer"]
+    camera["Local camera"] -.->|stays in the renderer| renderer
+    renderer --> obs["OBS Browser Source"]
 ```
 
-* Three scenes (city, forest, space) and three effects (rain, snow, fireworks),
-  drawn with CSS, SVG and Canvas, with no third-party artwork.
-* A versioned, typed, validated [event protocol](protocol.md) backed by an
-  allowlist registry.
-* A local FastAPI [event server](api.md) with health, registry and event
-  endpoints, plus WebSocket broadcast.
-* An operator control panel, including a clearly labelled simulated
-  viewer-event section that demonstrates the adapter boundary.
-* Reconnect handling: the renderer keeps rendering when the server goes away,
-  and re-syncs when it comes back.
-* [Camera compositing](camera.md): the renderer can open a local camera,
-  separate you from your physical background on your own machine, and draw you
-  between the scene's background and foreground effect layers. Camera frames
-  never leave the renderer tab.
+An operator presses a button in the control panel. The event server validates
+the request against an allowlist, stamps it and broadcasts it. The renderer
+re-validates it and changes the scene or starts an effect. OBS shows the
+renderer like any other web page.
+
+The renderer knows nothing about any livestream platform. Future platform
+adapters will translate their own events into the same protocol the control
+panel already speaks; none exist yet.
+
+## What works today
+
+* **Four scenes** (City, Forest, Space and Roadside Workshop) and **three
+  effects** (rain, snow, fireworks), drawn with CSS, SVG and Canvas and original
+  to the repository. See [Scenes and Effects](scenes-and-effects.md).
+* **Layered scene composition.** Scenes place artwork and seeded, autonomous
+  actors on planes behind and in front of the subject. In Roadside Workshop,
+  traffic passes behind you and leaves blow past in front.
+* **Camera compositing** with three modes: **Off** (the default on every
+  load), **Raw**, and **Segmented**, which removes your physical background with
+  a segmentation model running locally. See
+  [Camera and Compositing](camera.md).
+* A versioned, validated [event protocol](protocol.md) and a local
+  [event server](api.md) with WebSocket broadcast.
+* Resilience: the renderer keeps showing the current scene when the server
+  goes away, and re-syncs when it comes back.
+* Reduced motion: with `prefers-reduced-motion`, scenes hold still and effects
+  run lighter.
 
 No livestream platform integration, AI, audio, persistence or authentication
-exists yet. See the [roadmap](roadmap.md).
+exists yet. See the [Roadmap](roadmap.md).
+
+!!! note "What has been validated"
+
+    The camera pipeline has run inside an OBS Browser Source with virtual
+    camera input. Mask quality has not been judged against a real person, and
+    scene composition with actors has not yet been run in OBS. The
+    [camera](camera.md#verified-in-obs) and
+    [scenes](scenes-and-effects.md#performance) pages record exactly what was
+    measured.
 
 ## Where to start
 
@@ -53,6 +71,8 @@ exists yet. See the [roadmap](roadmap.md).
   boundaries and why they exist.
 * :material-webcam: **[Camera and Compositing](camera.md)** covers putting
   yourself inside a scene.
+* :material-layers: **[Scenes and Effects](scenes-and-effects.md)** covers
+  planes, actors and Roadside Workshop.
 
 </div>
 

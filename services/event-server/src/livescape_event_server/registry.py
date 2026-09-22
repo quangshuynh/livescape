@@ -13,7 +13,7 @@ from typing import Any, Literal, get_args
 
 REGISTRY_PATH = Path(__file__).with_name("registry.json")
 
-SceneId = Literal["city", "forest", "space"]
+SceneId = Literal["city", "forest", "space", "roadside-workshop"]
 EffectId = Literal["rain", "snow", "fireworks"]
 EventSource = Literal["manual", "simulation", "system"]
 

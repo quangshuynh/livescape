@@ -11,7 +11,8 @@ services/
 packages/
   protocol/          Shared TypeScript protocol types, guards and registry
 docs/                Documentation site sources
-.github/workflows/   CI
+.github/workflows/   CI (ci.yml) and documentation publishing (docs.yml)
+mkdocs.yml           Documentation site configuration
 ```
 
 The npm workspaces are `packages/*` and `apps/*`. The event server is not part
@@ -35,14 +36,15 @@ It is consumed as source, not as a build artifact: the apps import
 
 | File | Responsibility |
 | --- | --- |
-| `src/App.tsx` | Composition: scene layers, crossfade, effect planes, camera layer, debug overlay |
+| `src/App.tsx` | The stage: scene planes, effect planes and the camera layer in stage order, plus the debug overlay |
 | `src/useEventStream.ts` | WebSocket subscription and reconnect backoff |
 | `src/rendererState.ts` | Pure reducer folding protocol events into renderer state |
-| `src/scenes/` | One component per scene, plus the `SCENE_COMPONENTS` map |
+| `src/scenes/` | Scene artwork per plane, the `SCENES` definitions, the scene director that runs showings and crossfades, and the plane component |
+| `src/actors/` | The actor vocabulary and validation, the pure population model, the timer-driven engine, sprite artwork, and the plane that animates actors |
 | `src/effects/` | Canvas particle systems and the layer that drives them |
 | `src/camera/` | Camera lifecycle: pure state reducer, media access, and the hook that owns the `MediaStream` |
 | `src/segmentation/` | The `SubjectSegmenter` boundary, the MediaPipe backend, the latest-frame scheduler, mask shaping and quality presets |
-| `src/compositor/` | Layer ordering, framing maths, the draw routine and the camera layer |
+| `src/compositor/` | Stage order (`layers.ts`), framing maths, the draw routine and the camera layer |
 | `src/setup/` | The `?setup=1` camera setup panel |
 | `src/config.ts` | Environment and URL-parameter resolution |
 | `public/models/` | The committed `.tflite` segmentation model and its notice |
@@ -50,7 +52,8 @@ It is consumed as source, not as a build artifact: the apps import
 
 The camera modules are layered so the parts that need a browser are as small as
 possible: `cameraState.ts`, `framing.ts`, `draw.ts`, `mask.ts` and
-`scheduler.ts` are all free of DOM and media APIs, which is what makes the
+`scheduler.ts` are all free of DOM and media APIs, as are the actor model
+(`population.ts`, `engine.ts`) and the scene director, which is what makes the
 lifecycle and compositing rules testable without hardware.
 
 ## `apps/control-panel`

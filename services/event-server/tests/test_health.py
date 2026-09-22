@@ -44,5 +44,10 @@ def test_registry_endpoint_exposes_the_allowlist(client: TestClient) -> None:
     body = client.get("/api/registry").json()
 
     assert body["protocolVersion"] == PROTOCOL_VERSION
-    assert [scene["id"] for scene in body["scenes"]] == ["city", "forest", "space"]
+    assert [scene["id"] for scene in body["scenes"]] == [
+        "city",
+        "forest",
+        "space",
+        "roadside-workshop",
+    ]
     assert [effect["id"] for effect in body["effects"]] == ["rain", "snow", "fireworks"]

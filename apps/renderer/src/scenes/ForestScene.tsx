@@ -1,5 +1,3 @@
-import { useMemo } from 'react';
-
 import { mulberry32, range } from './random.js';
 
 interface Tree {
@@ -56,11 +54,12 @@ function Treeline({ trees, className }: { trees: readonly Tree[]; className: str
   );
 }
 
-export function ForestScene() {
-  const far = useMemo(() => buildTreeline(4212, 26, 170), []);
-  const mid = useMemo(() => buildTreeline(9931, 19, 250), []);
-  const near = useMemo(() => buildTreeline(1571, 13, 360), []);
+const FAR = buildTreeline(4212, 26, 170);
+const MID = buildTreeline(9931, 19, 250);
+const NEAR = buildTreeline(1571, 13, 360);
 
+/** Sky, light and the distant treelines. */
+export function ForestBackdrop() {
   return (
     <div className="scene scene--forest" aria-hidden="true">
       <div className="scene__sky scene__sky--forest" />
@@ -71,14 +70,22 @@ export function ForestScene() {
         <span className="forest__shaft forest__shaft--c" />
       </div>
       <svg className="forest__layer forest__layer--far" viewBox="0 0 960 540" preserveAspectRatio="xMidYMax slice">
-        <Treeline trees={far} className="forest__tree forest__tree--far" />
+        <Treeline trees={FAR} className="forest__tree forest__tree--far" />
       </svg>
       <div className="forest__mist" />
       <svg className="forest__layer forest__layer--mid" viewBox="0 0 960 540" preserveAspectRatio="xMidYMax slice">
-        <Treeline trees={mid} className="forest__tree forest__tree--mid" />
+        <Treeline trees={MID} className="forest__tree forest__tree--mid" />
       </svg>
+    </div>
+  );
+}
+
+/** The nearest treeline and the forest floor, closest to the subject. */
+export function ForestEnvironment() {
+  return (
+    <div className="scene scene--forest" aria-hidden="true">
       <svg className="forest__layer forest__layer--near" viewBox="0 0 960 540" preserveAspectRatio="xMidYMax slice">
-        <Treeline trees={near} className="forest__tree forest__tree--near" />
+        <Treeline trees={NEAR} className="forest__tree forest__tree--near" />
       </svg>
       <div className="forest__floor" />
     </div>

@@ -45,9 +45,11 @@ control panel → FastAPI event server → WebSocket → renderer → visible ch
 
 What exists and is verified:
 
-* three scenes (city, forest, space) and three effects (rain, snow, fireworks),
-  drawn with CSS, SVG and Canvas, using no third-party artwork and no external
-  assets;
+* four scenes (City, Forest, Space and Roadside Workshop) and three effects
+  (rain, snow, fireworks), drawn with CSS, SVG and Canvas, using no third-party
+  artwork and no external assets;
+* **layered scene composition**: scenes place artwork and seeded, autonomous
+  actors (traffic, passers-by, blown leaves) behind or in front of you;
 * a versioned, typed, validated event protocol with an allowlist registry;
 * a local FastAPI event server with health, registry and event endpoints, plus
   WebSocket broadcast;
@@ -57,7 +59,7 @@ What exists and is verified:
   and re-syncs when it comes back;
 * **camera compositing**: the renderer opens a local camera, removes your
   physical background with a segmentation model that runs on your machine, and
-  draws you between the scene's background and foreground effect planes.
+  draws you between the parts of the scene behind you and in front of you.
 
 What does **not** exist yet: any livestream platform integration, AI, audio,
 persistence or authentication. See [Roadmap](#roadmap). Nothing in this
@@ -272,10 +274,12 @@ CI runs the same commands on every push and pull request.
 
 ## Documentation
 
-Detailed documentation lives in [`docs/`](docs/) and is published with MkDocs
-and Material for MkDocs. Start with
+The full documentation is published at
+**[quangshuynh.github.io/livescape](https://quangshuynh.github.io/livescape/)**.
+Its sources live in [`docs/`](docs/) and are built with MkDocs and Material for
+MkDocs. Good places to start are
 [architecture](docs/architecture.md), [camera and compositing](docs/camera.md),
-the [event protocol](docs/protocol.md) or [OBS setup](docs/obs.md).
+the [event protocol](docs/protocol.md) and [OBS setup](docs/obs.md).
 
 To work on the site locally:
 
@@ -284,8 +288,9 @@ python -m pip install -r requirements-docs.txt
 mkdocs serve
 ```
 
-That serves it at http://127.0.0.1:8000. `mkdocs build --strict` renders the
-site into `site/`.
+That serves it at http://127.0.0.1:8000/livescape/. `mkdocs build --strict`
+renders the site into `site/`. Pull requests that touch the documentation get
+a strict build in CI, and merges to `main` publish it to GitHub Pages.
 
 ## Current limitations
 

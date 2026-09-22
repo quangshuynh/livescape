@@ -19,12 +19,19 @@ npm test
 npm run build
 ```
 
-CI runs exactly these commands on every push and pull request. Build the
-documentation locally when you change it:
+CI runs exactly these commands on every push and pull request.
+
+## Documentation
 
 ```bash
+python -m pip install -r requirements-docs.txt
 mkdocs build --strict
 ```
+
+The `Docs` workflow runs the same strict build on every pull request that
+touches `docs/`, `mkdocs.yml` or `requirements-docs.txt`, and fails on any
+warning, including a broken internal link. On `main` it also publishes the
+result to GitHub Pages. See [Documentation Site](documentation-site.md).
 
 ## Suite composition
 
@@ -32,7 +39,7 @@ mkdocs build --strict
 | --- | --- | --- |
 | `services/event-server/tests` | 51 | Protocol validation, state folding and expiry, broadcast and client dropping, WebSocket handshake and `state.sync`, health, registry drift |
 | `packages/protocol` | 23 | Envelope parsing, bounds, defaults, request builders |
-| `apps/renderer` | 211 | Reducer transitions, reconnect backoff, effect particle budgets, camera lifecycle, segmentation scheduling, compositing, and rendering |
+| `apps/renderer` | 281 | Reducer transitions, reconnect backoff, effect particle budgets, camera lifecycle, segmentation scheduling, compositing, scene composition and actors, and rendering |
 | `apps/control-panel` | 20 | Request building, rejection handling, simulated-action mapping, UI behaviour |
 
 Python tests use pytest with `filterwarnings = ["error"]`, so a new warning
