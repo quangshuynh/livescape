@@ -124,10 +124,9 @@ already running segmentation:
 * Actor positions are percentages of the actor's own box, so nothing is ever
   measured.
 
-Measured in the Claude desktop app's built-in Chromium at 1920x1080, with
-segmentation running on synthetic input and MediaPipe on the GPU: Roadside
-Workshop held 60 fps (99th-percentile frame 18.7 ms, no long tasks) with no
-effects. With rain and fireworks both at full intensity it held 53 fps, and City
+Measured in a desktop Chromium-based browser at 1920x1080, with segmentation
+running on synthetic input and MediaPipe on the GPU: Roadside Workshop held
+60 fps (99th-percentile frame 18.7 ms, no long tasks) with no effects. With rain and fireworks both at full intensity it held 53 fps, and City
 under the same load held 43 fps, so the cost at that point is the effects and
 the scene artwork rather than the actors. OBS itself has not been measured.
 

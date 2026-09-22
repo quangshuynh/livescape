@@ -45,7 +45,8 @@ packages/protocol/     Shared TypeScript protocol types, guards, registry
 docs/                  MkDocs documentation site sources
 mkdocs.yml             Documentation site configuration
 requirements-docs.txt  Documentation tooling (MkDocs + Material)
-.github/workflows/ci.yml  Python and TypeScript verification
+.github/workflows/ci.yml    Python and TypeScript verification
+.github/workflows/docs.yml  Strict MkDocs build; GitHub Pages deploy from main
 ```
 
 npm workspaces: `packages/*` and `apps/*`. The event server is a separate
@@ -270,8 +271,21 @@ npm run lint && npm run typecheck && npm test && npm run build
 mkdocs build --strict
 ```
 
-CI runs the Python and TypeScript commands on every push and pull request. The
-documentation build is local only.
+CI runs the Python and TypeScript commands on every push and pull request.
+
+## Documentation site
+
+`docs.yml` runs `mkdocs build --strict` on pull requests and pushes to `main`
+that touch `docs/`, `mkdocs.yml`, `requirements-docs.txt` or the workflow. Only
+`main` uploads a Pages artifact and deploys it (native Pages artifact flow, no
+`gh-pages` branch); the deploy job alone holds `pages: write` and
+`id-token: write`, and the `github-pages` environment only accepts `main`.
+Published at `https://quangshuynh.github.io/livescape/` (`site_url`), so every
+generated URL is under `/livescape/`. `validation:` in `mkdocs.yml` turns broken
+anchors and pages missing from `nav` into strict-mode failures. The `privacy`
+plugin self-hosts Google Fonts and Mermaid at build time; the site loads no
+third-party scripts. Header logo and favicon are small derivatives of
+`docs/images/livescape-logo.png`.
 
 ## Invariants
 
@@ -326,5 +340,3 @@ documentation build is local only.
 * Event-triggered scene actions through a registry-allowlisted action id that
   maps onto `ActorEngine.trigger`, without a free-form "execute" event.
 * Platform adapters as separate processes that speak the existing protocol.
-* Possible follow-ups for the documentation site: a `mkdocs build --strict` job
-  in CI, and GitHub Pages deployment once that is in scope.
