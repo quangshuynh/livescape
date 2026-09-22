@@ -61,27 +61,6 @@
   bottom: 0;
   height: 12%;
   background: linear-gradient(180deg, rgba(8, 10, 22, 0.1), rgba(4, 6, 14, 0.95));
-  overflow: hidden;
-}
-
-.city__traffic {
-  position: absolute;
-  bottom: 22%;
-  width: 22%;
-  height: 3px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, transparent, rgba(255, 196, 128, 0.85), transparent);
-  filter: blur(1px);
-}
-
-.city__traffic--a {
-  animation: city-traffic-right 9s linear infinite;
-}
-
-.city__traffic--b {
-  bottom: 48%;
-  background: linear-gradient(90deg, transparent, rgba(255, 106, 106, 0.7), transparent);
-  animation: city-traffic-left 13s linear infinite;
 }
 
 @keyframes city-glow-pulse {
@@ -123,24 +102,6 @@
   }
   96% {
     opacity: 0.85;
-  }
-}
-
-@keyframes city-traffic-right {
-  from {
-    transform: translateX(-30vw);
-  }
-  to {
-    transform: translateX(130vw);
-  }
-}
-
-@keyframes city-traffic-left {
-  from {
-    transform: translateX(130vw);
-  }
-  to {
-    transform: translateX(-30vw);
   }
 }
 
@@ -402,7 +363,6 @@
   .city__layer--far,
   .city__layer--near,
   .city__window,
-  .city__traffic,
   .forest__sun,
   .forest__layer--far,
   .forest__layer--mid,
@@ -417,5 +377,153 @@
 
   .space__star {
     opacity: 0.8;
+  }
+}
+
+/* ---------------------------------------------------- roadside workshop --- */
+
+/* Ambient motion here is deliberately sparse and slow: the traffic is the
+   point of interest, and the rest of the room should read as still. */
+
+.roadside__art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.roadside__cloud,
+.roadside__tree,
+.roadside__lamp,
+.roadside__vines,
+.roadside__hand {
+  transform-box: view-box;
+}
+
+.roadside__cloud--a {
+  animation: roadside-cloud 160s ease-in-out infinite alternate;
+}
+
+.roadside__cloud--b {
+  animation: roadside-cloud 210s ease-in-out infinite alternate-reverse;
+}
+
+.roadside__tree {
+  transform-origin: 600px 300px;
+  animation: roadside-sway 9s ease-in-out infinite alternate;
+}
+
+.roadside__lamp {
+  transform-origin: 252px 0;
+  animation: roadside-lamp 7s ease-in-out infinite alternate;
+}
+
+.roadside__vines {
+  transform-origin: 912px 0;
+  animation: roadside-lamp 11s ease-in-out infinite alternate-reverse;
+}
+
+.roadside__hand {
+  transform-origin: 850px 128px;
+  animation-name: roadside-turn;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.roadside__neon {
+  filter: drop-shadow(0 0 5px rgba(255, 92, 132, 0.8));
+  animation: roadside-neon 23s steps(1, end) infinite;
+}
+
+.roadside__steam {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  opacity: 0;
+  animation: roadside-steam 5s ease-out infinite;
+}
+
+.roadside__steam--late {
+  animation-delay: -2.5s;
+}
+
+@keyframes roadside-cloud {
+  from {
+    transform: translate3d(-40px, 0, 0);
+  }
+  to {
+    transform: translate3d(40px, 0, 0);
+  }
+}
+
+@keyframes roadside-sway {
+  from {
+    transform: rotate(-0.8deg);
+  }
+  to {
+    transform: rotate(0.8deg);
+  }
+}
+
+@keyframes roadside-lamp {
+  from {
+    transform: rotate(-1.2deg);
+  }
+  to {
+    transform: rotate(1.2deg);
+  }
+}
+
+@keyframes roadside-turn {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* A neon tube that almost never misbehaves. */
+@keyframes roadside-neon {
+  0%,
+  96%,
+  100% {
+    opacity: 1;
+  }
+  96.4% {
+    opacity: 0.45;
+  }
+  96.8% {
+    opacity: 1;
+  }
+  97.2% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes roadside-steam {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roadside__cloud,
+  .roadside__tree,
+  .roadside__lamp,
+  .roadside__vines,
+  .roadside__hand,
+  .roadside__neon,
+  .roadside__steam {
+    animation: none !important;
   }
 }

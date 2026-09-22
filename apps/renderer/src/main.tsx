@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App.js';
 import './styles.css';
 import './scenes/scenes.css';
+import './actors/actors.css';
 import './setup/setup.css';
 
 const container = document.getElementById('livescape-root');

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 
-import { planeOf, type EffectPlane } from '../compositor/layers.js';
+import { effectPlaneZIndex, planeOf, type EffectPlane } from '../compositor/layers.js';
 import type { ActiveEffectState } from '../rendererState.js';
 import { createEffectSystem, type EffectSystem, type Viewport } from './particles.js';
 
@@ -121,6 +121,7 @@ export function EffectsLayer({ effects, reducedMotion, plane }: EffectsLayerProp
       ref={canvasRef}
       className={`effects-layer effects-layer--${plane}`}
       aria-hidden="true"
+      style={{ zIndex: effectPlaneZIndex(plane) }}
     />
   );
 }

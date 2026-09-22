@@ -35,7 +35,11 @@ function buildSkyline(seed: number, count: number, maxHeight: number): Building[
   });
 }
 
-export function CityScene() {
+/**
+ * The city skyline. Traffic on the street is not part of the artwork: it is
+ * run by the actor engine as light streaks (see `scenes/index.ts`).
+ */
+export function CityBackdrop() {
   const far = useMemo(() => buildSkyline(20260101, 26, 300), []);
   const near = useMemo(() => buildSkyline(77341, 20, 430), []);
 
@@ -95,10 +99,7 @@ export function CityScene() {
           </g>
         ))}
       </svg>
-      <div className="city__street">
-        <span className="city__traffic city__traffic--a" />
-        <span className="city__traffic city__traffic--b" />
-      </div>
+      <div className="city__street" />
     </div>
   );
 }

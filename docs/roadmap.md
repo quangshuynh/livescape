@@ -13,7 +13,8 @@ Everything under **Planned** is future work. For what exists today, see the
 | No platform integration | The control panel and its simulation section are the only event sources. |
 | Segmentation runs on the main thread | MediaPipe's video API is synchronous, so inference competes with rendering. See [Camera and Compositing](camera.md#limitations). |
 | Camera in OBS needs a flag | An OBS Browser Source refuses `getUserMedia` unless OBS is started with `--use-fake-ui-for-media-stream`. |
-| No audio, no 3D, no AI | Effects are lightweight 2D Canvas particle systems. |
+| Simple actor motion | Actors move in straight lines at constant speed, and effects are not aware of a scene's framing. See [Scenes and Effects](scenes-and-effects.md#limitations). |
+| No audio, no 3D, no AI | Scenes are CSS and SVG; effects are lightweight 2D Canvas particle systems. |
 | Single process, single machine | No multi-operator coordination, no remote control, no deployment story. |
 
 ## Planned
@@ -22,8 +23,12 @@ Everything under **Planned** is future work. For what exists today, see the
 loop. The `SubjectSegmenter` interface already isolates the backend, so this
 does not touch the compositor or the camera lifecycle.
 
-**Richer scene composition**, using the layering the compositor now has: scene
-elements that can be drawn in front of the subject, not just effects.
+**Event-triggered scene actions**, such as sending a bus past or a gust of
+leaves on an event. The actor engine already has an internal trigger; this
+needs a registry-allowlisted action id in the protocol, not a free-form one.
+
+**Scene-aware effects**, so weather and fireworks can respect a scene's indoor
+framing.
 
 **Platform adapters** that translate real livestream events into the existing
 protocol, using official and compliant APIs only. They run as separate optional
