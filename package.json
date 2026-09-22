@@ -1,0 +1,34 @@
+{
+  "name": "livescape",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first interactive scene engine for livestreams.",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "dev": "concurrently -n renderer,panel -c cyan,magenta \"npm:dev:renderer\" \"npm:dev:panel\"",
+    "dev:renderer": "npm run dev -w @livescape/renderer",
+    "dev:panel": "npm run dev -w @livescape/control-panel",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "eslint .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.39.0",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.2",
+    "vitest": "^3.2.4"
+  }
+}
