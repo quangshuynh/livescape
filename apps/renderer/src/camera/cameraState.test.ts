@@ -193,6 +193,7 @@ describe('camera state', () => {
       softness: 0,
       smoothing: 0.9,
       featherPx: 12,
+      refineEdges: true,
     });
   });
 
