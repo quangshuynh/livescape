@@ -6,7 +6,7 @@ import registryJson from '../registry.json';
  * server rejects unknown ids and the renderer ignores them defensively.
  */
 
-export const SCENE_IDS = ['city', 'forest', 'space'] as const;
+export const SCENE_IDS = ['city', 'forest', 'space', 'roadside-workshop'] as const;
 export const EFFECT_IDS = ['rain', 'snow', 'fireworks'] as const;
 export const EVENT_SOURCES = ['manual', 'simulation', 'system'] as const;
 

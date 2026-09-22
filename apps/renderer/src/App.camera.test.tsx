@@ -196,7 +196,7 @@ describe('compositor layering', () => {
 });
 
 describe('scenes and effects while the camera is running', () => {
-  it.each(['city', 'forest', 'space'])('switches to %s with the camera on', async (sceneId) => {
+  it.each(['city', 'forest', 'space', 'roadside-workshop'])('switches to %s with the camera on', async (sceneId) => {
     const setup = renderApp();
     await startCamera(setup);
 
