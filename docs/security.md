@@ -67,9 +67,12 @@ the boundary precisely and records how it was verified.
 
 ## Third-party content
 
-Scenes and effects are drawn with CSS, SVG and Canvas. There is no third-party
-artwork and no external asset fetch at runtime, so nothing unexpected can
-appear on a live stream.
+Scenes, actors and effects are drawn with CSS, SVG and Canvas. All artwork is
+original to the repository and inline: there is no third-party artwork, no
+image or font file, and no external asset fetch at runtime, so nothing
+unexpected can appear on a live stream. Scene definitions are typed data: a
+scene cannot run code per actor, and events cannot reach scene definitions at
+all.
 
 ## Platform integrations
 
