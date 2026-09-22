@@ -39,7 +39,7 @@ result to GitHub Pages. See [Documentation Site](documentation-site.md).
 | --- | --- | --- |
 | `services/event-server/tests` | 51 | Protocol validation, state folding and expiry, broadcast and client dropping, WebSocket handshake and `state.sync`, health, registry drift |
 | `packages/protocol` | 23 | Envelope parsing, bounds, defaults, request builders |
-| `apps/renderer` | 281 | Reducer transitions, reconnect backoff, effect particle budgets, camera lifecycle, segmentation scheduling, compositing, scene composition and actors, and rendering |
+| `apps/renderer` | 355 | Reducer transitions, reconnect backoff, effect particle budgets, camera lifecycle, segmentation scheduling, frame/mask synchronisation, temporal filtering and edge refinement, compositing, scene composition and actors, and rendering |
 | `apps/control-panel` | 20 | Request building, rejection handling, simulated-action mapping, UI behaviour |
 
 Python tests use pytest with `filterwarnings = ["error"]`, so a new warning
@@ -91,5 +91,7 @@ Two claims require actual verification before they are written down anywhere:
 
 Those are separate levels of evidence, and the documentation keeps them
 separate. What has been verified for the camera pipeline, and what has not, is
-recorded in [Camera and Compositing](camera.md); mask quality against a real
-person is explicitly in the "not verified" column.
+recorded in [Camera and Compositing](camera.md). Matte quality is a visual
+property and is not asserted by the test suite; the tests cover the
+properties the matte pipeline guarantees (filter state, synchronisation,
+bounded history, scheduling), and visual quality is judged manually.

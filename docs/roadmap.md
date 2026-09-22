@@ -12,7 +12,7 @@ Everything under **Planned** is future work. For what exists today, see the
 | No authentication | The control API is unauthenticated and intended for loopback use only. |
 | No platform integration | The control panel and its simulation section are the only event sources. |
 | Segmentation runs on the main thread | MediaPipe's video API is synchronous, so inference competes with rendering. See [Camera and Compositing](camera.md#limitations). |
-| Camera in OBS needs a flag | An OBS Browser Source refuses `getUserMedia` unless OBS is started with `--use-fake-ui-for-media-stream`. |
+| Camera in OBS needs launch flags | An OBS Browser Source refuses `getUserMedia` unless OBS is started with `--use-fake-ui-for-media-stream` (on macOS, validated together with `--enable-media-stream`). |
 | Simple actor motion | Actors move in straight lines at constant speed, and effects are not aware of a scene's framing. See [Scenes and Effects](scenes-and-effects.md#limitations). |
 | No audio, no 3D, no AI | Scenes are CSS and SVG; effects are lightweight 2D Canvas particle systems. |
 | Single process, single machine | No multi-operator coordination, no remote control, no deployment story. |

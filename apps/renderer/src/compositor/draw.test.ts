@@ -24,6 +24,10 @@ function recorder(): CompositorContext & { calls: Call[] } {
     translate: (...args) => calls.push(['translate', ...args]),
     scale: (...args) => calls.push(['scale', ...args]),
     setTransform: (...args: unknown[]) => calls.push(['setTransform', ...args]),
+    fillRect: (...args) => calls.push(['fillRect', ...args]),
+    fillStyle: '#000',
+    imageSmoothingEnabled: true,
+    imageSmoothingQuality: 'low',
     get globalCompositeOperation() {
       return composite;
     },

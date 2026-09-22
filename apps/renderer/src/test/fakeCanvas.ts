@@ -47,6 +47,12 @@ export function installFakeCanvas(): {
       scale: record('scale'),
       setTransform: record('setTransform'),
       putImageData: record('putImageData'),
+      fillRect: record('fillRect'),
+      getImageData: (_x: number, _y: number, width: number, height: number) => ({
+        width,
+        height,
+        data: new Uint8ClampedArray(width * height * 4),
+      }),
       createImageData: (width: number, height: number) => ({
         width,
         height,
@@ -54,6 +60,9 @@ export function installFakeCanvas(): {
       }),
       globalCompositeOperation: 'source-over',
       filter: 'none',
+      fillStyle: '#000',
+      imageSmoothingEnabled: true,
+      imageSmoothingQuality: 'low',
     };
     contexts.push(context as unknown as FakeContext);
     return context as unknown as CanvasRenderingContext2D;

@@ -81,6 +81,7 @@ function normalizeShaping(shaping: MaskShaping, patch: Partial<MaskShaping>): Ma
     softness: clamp(merged.softness, 0, 0.45),
     smoothing: clamp(merged.smoothing, 0, 0.9),
     featherPx: clamp(merged.featherPx, 0, 12),
+    refineEdges: merged.refineEdges,
   };
 }
 

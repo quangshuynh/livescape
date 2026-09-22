@@ -301,15 +301,17 @@ a strict build in CI, and merges to `main` publish it to GitHub Pages.
 * **No platform integration.** Simulated events are the only event source
   besides the control panel.
 * **Segmentation runs on the main thread.** MediaPipe's video API is
-  synchronous, so inference competes with rendering. It measured around 6 ms
-  per inference in OBS without dropping frames, but a Web Worker is the
-  clearest next improvement.
-* **The camera needs a flag inside OBS.** An OBS Browser Source refuses
-  `getUserMedia` unless OBS is started with `--use-fake-ui-for-media-stream`,
-  which auto-grants camera access to *every* browser source in that instance.
+  synchronous, so inference competes with rendering. A duty-cycle cap keeps the
+  page's frame rate by lowering the subject's update rate on slow machines, but
+  a Web Worker is the clearest next improvement.
+* **The camera needs launch flags inside OBS.** An OBS Browser Source refuses
+  `getUserMedia` unless OBS is started with `--use-fake-ui-for-media-stream`
+  (on macOS, validated together with `--enable-media-stream`), which
+  auto-grants camera access to *every* browser source in that instance.
 * **Segmentation is not studio quality.** The model is optimised for real-time
   use, not pixel-perfect masks; hair, fingers, glasses and low light are where
-  that shows.
+  that shows. Each frame is shown with its own mask, so the subject appears
+  about one inference (around 20 ms) late.
 * **Single process, single machine.** No multi-user coordination, no remote
   control, no deployment story.
 * **Effects are 2D canvas.** They are intentionally lightweight; there is no 3D

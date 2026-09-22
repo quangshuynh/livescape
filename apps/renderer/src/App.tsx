@@ -5,6 +5,7 @@ import type { EngineClock } from './actors/engine.js';
 import { useCamera } from './camera/useCamera.js';
 import type { MediaDevicesLike } from './camera/media.js';
 import { CameraLayer } from './compositor/CameraLayer.js';
+import type { CompositorView } from './compositor/draw.js';
 import { stageZIndex } from './compositor/layers.js';
 import { EMPTY_COMPOSITOR_STATS, type CompositorStats } from './compositor/stats.js';
 import { debugOverlayEnabled, resolveWsUrl, setupPanelEnabled } from './config.js';
@@ -38,6 +39,9 @@ export function App({ mediaDevices, createSegmenter, sceneClock }: AppProps = {}
 
   const camera = useCamera(mediaDevices);
   const [cameraStats, setCameraStats] = useState<CompositorStats>(EMPTY_COMPOSITOR_STATS);
+  // The matte view is a setup-only inspection aid. It is held here, not in
+  // camera state, and only reaches the compositor while the panel is mounted.
+  const [view, setView] = useState<CompositorView>('composite');
 
   const onEvent = useCallback((event: LiveScapeEvent) => {
     dispatch({ type: 'event', event, now: Date.now() });
@@ -91,6 +95,7 @@ export function App({ mediaDevices, createSegmenter, sceneClock }: AppProps = {}
         stream={camera.stream}
         onSegmentationStatus={reportSegmentation}
         onStats={onStats}
+        view={showSetup ? view : 'composite'}
         createSegmenter={createSegmenter}
       />
       <ScenePlane layer="foreground" instances={instances} />
@@ -116,6 +121,8 @@ export function App({ mediaDevices, createSegmenter, sceneClock }: AppProps = {}
           effects={effectIds}
           frameRate={frameRate}
           director={director}
+          view={view}
+          onViewChange={setView}
         />
       ) : null}
     </div>
@@ -169,6 +176,9 @@ function DebugOverlay({
             seg: {segmentation.segmentationFps.toFixed(0)} FPS,{' '}
             {segmentation.inferenceMs.toFixed(1)} ms, {segmentation.skipped} skipped
           </p>
+          {stats.maskAgeMs !== null ? (
+            <p className="debug-overlay__row">mask age: {stats.maskAgeMs.toFixed(0)} ms</p>
+          ) : null}
         </>
       ) : null}
       <p className="debug-overlay__row debug-overlay__row--muted">{wsUrl}</p>

@@ -3,6 +3,7 @@ import { useEffect, useId } from 'react';
 import type { CameraController } from '../camera/useCamera.js';
 import type { CameraMode, CameraState } from '../camera/types.js';
 import { stageZIndex } from '../compositor/layers.js';
+import type { CompositorView } from '../compositor/draw.js';
 import type { CompositorStats } from '../compositor/stats.js';
 import { describeActorCounts, useActorCounts } from '../scenes/diagnostics.js';
 import type { SceneDirector } from '../scenes/director.js';
@@ -31,8 +32,18 @@ const SEGMENTATION_TEXT: Record<CameraState['segmentation'], string> = {
   failed: 'failed',
 };
 
+const QUALITY_HINT: Record<CameraState['quality'], string> = {
+  performance: 'At most about 20 masks a second, lowest matte resolution, no edge refinement.',
+  balanced: 'Segments every frame of a 30 FPS camera and refines edges.',
+  quality: 'Higher matte resolution and wider edge refinement. Best for a still desk setup.',
+};
+
 function round(value: number, places = 0): string {
   return value.toFixed(places);
+}
+
+function describeSize(size: { width: number; height: number } | null): string {
+  return size ? `${size.width}x${size.height}` : '-';
 }
 
 interface SliderProps {
@@ -75,6 +86,9 @@ export interface SetupPanelProps {
   /** The page's own animation frame rate. */
   readonly frameRate: number;
   readonly director: SceneDirector;
+  /** Which view the compositor draws; `matte` exists only while this panel does. */
+  readonly view: CompositorView;
+  readonly onViewChange: (view: CompositorView) => void;
 }
 
 /**
@@ -91,6 +105,8 @@ export function SetupPanel({
   effects,
   frameRate,
   director,
+  view,
+  onViewChange,
 }: SetupPanelProps) {
   const { state, refreshDevices } = camera;
   const actors = useActorCounts(director);
@@ -104,6 +120,7 @@ export function SetupPanel({
 
   const running = state.status === 'ready';
   const { segmentation: segmentationStats } = stats;
+  const preset = QUALITY_PRESETS[state.quality];
 
   return (
     <aside
@@ -257,6 +274,32 @@ export function SetupPanel({
             </option>
           ))}
         </select>
+        <p className="setup__hint">{QUALITY_HINT[state.quality]}</p>
+        <div className="setup__toggles">
+          <button
+            type="button"
+            className="setup__mode"
+            aria-pressed={state.shaping.refineEdges}
+            disabled={preset.refineRadius === 0}
+            onClick={() => camera.setShaping({ refineEdges: !state.shaping.refineEdges })}
+          >
+            Edge refinement
+          </button>
+          <button
+            type="button"
+            className="setup__mode"
+            aria-pressed={view === 'matte'}
+            onClick={() => onViewChange(view === 'matte' ? 'composite' : 'matte')}
+          >
+            Show matte
+          </button>
+        </div>
+        {view === 'matte' ? (
+          <p className="setup__hint">
+            Showing the mask, white subject on black, in this tab only. The OBS Browser Source
+            never draws it.
+          </p>
+        ) : null}
         <Slider
           label="Edge threshold"
           value={state.shaping.threshold}
@@ -294,8 +337,8 @@ export function SetupPanel({
           onChange={(smoothing) => camera.setShaping({ smoothing })}
         />
         <p className="setup__hint">
-          Smoothing steadies the edge but trails behind a moving arm. Keep it low unless the
-          mask flickers.
+          Smoothing only steadies small changes on a still edge; real movement bypasses it. If
+          you see a trail behind a fast arm, lower it.
         </p>
       </section>
 
@@ -332,15 +375,20 @@ export function SetupPanel({
               ? `${state.resolution.width}x${state.resolution.height}`
               : '-'}
           </dd>
+          <dt>Camera rate</dt>
+          <dd>{running && stats.cameraFps > 0 ? `${round(stats.cameraFps)} FPS` : '-'}</dd>
           <dt>Page</dt>
           <dd>{round(frameRate)} FPS</dd>
           <dt>Render</dt>
           <dd>{running ? `${round(stats.renderFps)} FPS` : '-'}</dd>
+          <dt>Quality</dt>
+          <dd>{stats.quality ? QUALITY_PRESETS[stats.quality].label : '-'}</dd>
           <dt>Segmentation input</dt>
+          <dd>{describeSize(stats.segmentationInput)}</dd>
+          <dt>Mask</dt>
           <dd>
-            {stats.segmentationInput
-              ? `${stats.segmentationInput.width}x${stats.segmentationInput.height}`
-              : '-'}
+            {describeSize(stats.maskResolution)}
+            {stats.maskResolution ? (stats.edgeRefined ? ', refined' : ', unrefined') : ''}
           </dd>
           <dt>Backend</dt>
           <dd>{stats.segmentationBackend ?? '-'}</dd>
@@ -348,12 +396,18 @@ export function SetupPanel({
           <dd>{round(segmentationStats.segmentationFps)} FPS</dd>
           <dt>Inference</dt>
           <dd>{round(segmentationStats.inferenceMs, 1)} ms</dd>
+          <dt>Mask processing</dt>
+          <dd>{round(stats.processingMs, 1)} ms</dd>
+          <dt>Mask age</dt>
+          <dd>{stats.maskAgeMs === null ? '-' : `${round(stats.maskAgeMs)} ms`}</dd>
           <dt>Masks</dt>
           <dd>{segmentationStats.completed}</dd>
           <dt>Skipped</dt>
           <dd>{segmentationStats.skipped}</dd>
           <dt>Throttled</dt>
           <dd>{segmentationStats.throttled}</dd>
+          <dt>Stale</dt>
+          <dd>{stats.staleMasks}</dd>
           <dt>Errors</dt>
           <dd>{segmentationStats.errors}</dd>
           <dt>Server</dt>
