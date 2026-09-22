@@ -9,10 +9,20 @@ edit_uri: edit/main/docs/
 
 copyright: MIT licensed.
 
+# Strict builds fail on every one of these, so a broken anchor or a page left
+# out of the navigation is caught in CI rather than on the published site.
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
 theme:
   name: material
-  logo: images/livescape-logo.png
-  favicon: images/livescape-logo.png
+  # Small derivatives of docs/images/livescape-logo.png. The full-size logo is
+  # ~850 KB and would otherwise be fetched by every page.
+  logo: images/livescape-mark.png
+  favicon: images/favicon.png
   icon:
     repo: fontawesome/brands/github
   palette:
@@ -72,6 +82,9 @@ markdown_extensions:
 
 plugins:
   - search
+  # Downloads Google Fonts and Mermaid at build time and serves them from the
+  # site itself, so no font or script is loaded from a third party.
+  - privacy
 
 nav:
   - Home: index.md
@@ -90,6 +103,7 @@ nav:
   - Development:
       - Repository Structure: repository-structure.md
       - Testing: testing.md
+      - Documentation Site: documentation-site.md
   - Project:
       - Security and Privacy: security.md
       - Roadmap: roadmap.md
