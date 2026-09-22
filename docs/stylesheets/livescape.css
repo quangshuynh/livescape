@@ -1,0 +1,97 @@
+/*
+ * LiveScape documentation theme.
+ *
+ * Deep blue/purple identity with a cyan accent, taken from the project logo
+ * and pulled toward readability: the docs should feel technical and calm
+ * rather than like a neon dashboard. Contrast wins over exact logo colors.
+ */
+
+:root {
+  --livescape-deep: #221f6b;
+  --livescape-indigo: #3b34a8;
+  --livescape-violet: #6d4bd8;
+  --livescape-cyan: #0e8ba8;
+  --livescape-cyan-bright: #56dcf5;
+  --livescape-ember: #f07a4b;
+}
+
+/* Light scheme ----------------------------------------------------------- */
+
+[data-md-color-primary='custom'] {
+  --md-primary-fg-color: var(--livescape-deep);
+  --md-primary-fg-color--light: var(--livescape-indigo);
+  --md-primary-fg-color--dark: #16144a;
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: rgba(255, 255, 255, 0.72);
+}
+
+[data-md-color-accent='custom'] {
+  --md-accent-fg-color: var(--livescape-cyan);
+  --md-accent-fg-color--transparent: rgba(14, 139, 168, 0.1);
+  --md-accent-bg-color: #ffffff;
+  --md-accent-bg-color--light: rgba(255, 255, 255, 0.72);
+}
+
+[data-md-color-scheme='default'] {
+  --md-typeset-a-color: var(--livescape-indigo);
+}
+
+/* Dark scheme ------------------------------------------------------------ */
+
+[data-md-color-scheme='slate'] {
+  /* Shifts Material's neutral greys toward the logo's blue. */
+  --md-hue: 240;
+  --md-typeset-a-color: var(--livescape-cyan-bright);
+}
+
+[data-md-color-scheme='slate'][data-md-color-primary='custom'] {
+  --md-primary-fg-color: #171540;
+  --md-primary-fg-color--light: var(--livescape-violet);
+  --md-primary-fg-color--dark: #0f0e2c;
+}
+
+[data-md-color-scheme='slate'][data-md-color-accent='custom'] {
+  --md-accent-fg-color: var(--livescape-cyan-bright);
+  --md-accent-fg-color--transparent: rgba(86, 220, 245, 0.12);
+  --md-accent-bg-color: #0f0e2c;
+}
+
+/* Typography and spacing ------------------------------------------------- */
+
+.md-typeset {
+  line-height: 1.7;
+}
+
+.md-typeset h1,
+.md-typeset h2 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Material dims h1 by default; full contrast reads better against the long
+   technical pages here. */
+.md-typeset h1 {
+  color: var(--md-default-fg-color);
+}
+
+.md-typeset h2 {
+  margin-top: 2.2em;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--md-default-fg-color--lightest);
+}
+
+/* Identity --------------------------------------------------------------- */
+
+.md-header__button.md-logo img,
+.md-nav__button.md-logo img {
+  height: 1.65rem;
+  width: 1.65rem;
+}
+
+/* A thin cyan rule under the header, the one place the accent shows up
+   without being asked. */
+.md-header {
+  box-shadow: inset 0 -2px 0 0 var(--livescape-cyan);
+}
