@@ -1,8 +1,8 @@
 # Roadmap
 
-Everything on this page is future work. Nothing here is implemented. For what
-exists today, see the [home page](index.md) and
-[Scenes and Effects](scenes-and-effects.md).
+Everything under **Planned** is future work. For what exists today, see the
+[home page](index.md), [Scenes and Effects](scenes-and-effects.md) and
+[Camera and Compositing](camera.md).
 
 ## Current limitations
 
@@ -11,16 +11,19 @@ exists today, see the [home page](index.md) and
 | No persistence | Scene state lives in memory. Restart the event server and it comes back on the default scene. |
 | No authentication | The control API is unauthenticated and intended for loopback use only. |
 | No platform integration | The control panel and its simulation section are the only event sources. |
-| No camera compositing | The renderer draws a background environment. It does not yet composite a camera feed or separate a subject from it. |
+| Segmentation runs on the main thread | MediaPipe's video API is synchronous, so inference competes with rendering. See [Camera and Compositing](camera.md#limitations). |
+| Camera in OBS needs a flag | An OBS Browser Source refuses `getUserMedia` unless OBS is started with `--use-fake-ui-for-media-stream`. |
 | No audio, no 3D, no AI | Effects are lightweight 2D Canvas particle systems. |
 | Single process, single machine | No multi-operator coordination, no remote control, no deployment story. |
 
 ## Planned
 
-**Camera compositing and subject segmentation**, so a scene can render behind
-and in front of the person on camera. This extends the renderer. Frames stay in
-the renderer process and never touch the event server; see
-[Architecture](architecture.md#the-camera-boundary).
+**Segmentation in a Web Worker**, so inference stops competing with the render
+loop. The `SubjectSegmenter` interface already isolates the backend, so this
+does not touch the compositor or the camera lifecycle.
+
+**Richer scene composition**, using the layering the compositor now has: scene
+elements that can be drawn in front of the subject, not just effects.
 
 **Platform adapters** that translate real livestream events into the existing
 protocol, using official and compliant APIs only. They run as separate optional

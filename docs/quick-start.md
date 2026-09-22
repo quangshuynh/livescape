@@ -70,4 +70,18 @@ the current scene and active effects:
 It is off by default so the OBS source stays clean. Do not add `?debug=1` to
 the URL you give OBS.
 
+## 6. Camera setup
+
+Open the renderer with `?setup=1` for the camera panel:
+
+<http://127.0.0.1:5173/?setup=1>
+
+Choose **Raw** to see the camera as it is, or **Segmented** to have your
+physical background removed locally and be composited into the scene. The
+camera is never opened until you ask for it, and the choice is not remembered
+across a reload.
+
+Like the debug overlay, this is off by default. Do not add `?setup=1` to the
+URL you give OBS. See [Camera and Compositing](camera.md).
+
 Next: [OBS Setup](obs.md).

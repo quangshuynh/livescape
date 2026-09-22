@@ -75,3 +75,19 @@ that guards it:
    component or particle system itself.
 
 The control panel needs no change: it renders its buttons from the registry.
+
+## Composition planes
+
+Each effect is drawn on one side of the camera subject:
+
+| Effect | Plane |
+| --- | --- |
+| `rain` | foreground |
+| `snow` | foreground |
+| `fireworks` | background |
+
+Weather falling between the camera and the subject is what makes a person look
+like they are standing inside the scene; fireworks read as distant sky, so they
+stay behind. Every effect belongs to exactly one plane, so the two planes
+together still draw each active effect exactly once, and with the camera off
+the result is unchanged. See [Camera and Compositing](camera.md).

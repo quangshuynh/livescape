@@ -93,8 +93,7 @@ over HTTP or the WebSocket: the event channel carries small control messages
 only, and sending video through it would be both a privacy problem and a
 latency problem.
 
-Camera compositing is not implemented yet. When it lands, it extends the
-renderer rather than the pipeline above it:
+Camera compositing extends the renderer rather than the pipeline above it:
 
 ```text
 Camera
@@ -108,5 +107,28 @@ LiveScape scene/effects
 OBS
 ```
 
-See the [roadmap](roadmap.md) for what is planned, and
+The camera system and the event system are independent in both directions.
+Losing the event server does not disturb the camera; a camera or segmentation
+failure does not disturb the scene. Camera state is renderer-local and is not
+part of the event protocol, so the event server has no idea whether a camera
+exists.
+
+### Composition planes
+
+The compositor draws back to front, with the subject between two effect planes:
+
+```text
+scene            the LiveScape environment, crossfading
+vignette         scene framing
+background       effects that belong behind the subject
+camera subject   the locally segmented person
+foreground       effects that fall between camera and subject
+debug / setup    local only, never in the OBS output
+```
+
+Segmentation sits behind a small renderer-local `SubjectSegmenter` interface,
+so the compositor and the camera lifecycle do not depend on any particular ML
+runtime.
+
+See [Camera and Compositing](camera.md) for the full picture, and
 [Security and Privacy](security.md) for the rules this boundary enforces.

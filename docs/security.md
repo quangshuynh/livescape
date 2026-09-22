@@ -32,14 +32,29 @@ loopback-only.
 
 ## Camera and media
 
-* Camera frames never leave the renderer process. They are not sent over HTTP
-  or the WebSocket, and the event channel carries small control messages only.
-* No camera uploads, to anywhere, for any reason.
+* Camera frames never leave the renderer tab. They are not sent over HTTP or
+  the WebSocket, and the event channel carries small control messages only.
+* No camera uploads, to anywhere, for any reason. Segmentation runs locally, in
+  the same tab, against a model served from the renderer's own origin.
 * No hidden recording, screenshots or frame persistence. Anything that writes a
   frame to disk must be an explicit, visible user action.
+* The camera is only ever opened by an explicit request, and that choice is not
+  remembered. Reloading the renderer always comes back with the camera off.
+* Camera state is renderer-local. It is not in the event protocol, so it never
+  reaches the event server or the control panel.
 
-Camera compositing is not implemented yet. These rules define the boundary it
-will be built inside.
+The only camera-related network requests are HTTP GETs to the renderer's own
+origin for the WASM runtime and the `.tflite` model. Those are static file
+downloads, not video transmission. [Camera and Compositing](camera.md) states
+the boundary precisely and records how it was verified.
+
+!!! warning "Allowing the camera inside OBS has a cost"
+
+    An OBS Browser Source refuses `getUserMedia` by default. The only way to
+    allow it is to start OBS with `--use-fake-ui-for-media-stream`, which
+    auto-accepts camera and microphone requests for **every** Browser Source in
+    that instance, with no prompt. Only do that if you trust every Browser
+    Source URL in your scene collection.
 
 ## Data and telemetry
 

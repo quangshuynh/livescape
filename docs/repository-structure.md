@@ -35,12 +35,23 @@ It is consumed as source, not as a build artifact: the apps import
 
 | File | Responsibility |
 | --- | --- |
-| `src/App.tsx` | Composition: scene layers, crossfade, effects layer, debug overlay |
+| `src/App.tsx` | Composition: scene layers, crossfade, effect planes, camera layer, debug overlay |
 | `src/useEventStream.ts` | WebSocket subscription and reconnect backoff |
 | `src/rendererState.ts` | Pure reducer folding protocol events into renderer state |
 | `src/scenes/` | One component per scene, plus the `SCENE_COMPONENTS` map |
 | `src/effects/` | Canvas particle systems and the layer that drives them |
+| `src/camera/` | Camera lifecycle: pure state reducer, media access, and the hook that owns the `MediaStream` |
+| `src/segmentation/` | The `SubjectSegmenter` boundary, the MediaPipe backend, the latest-frame scheduler, mask shaping and quality presets |
+| `src/compositor/` | Layer ordering, framing maths, the draw routine and the camera layer |
+| `src/setup/` | The `?setup=1` camera setup panel |
 | `src/config.ts` | Environment and URL-parameter resolution |
+| `public/models/` | The committed `.tflite` segmentation model and its notice |
+| `vite/mediapipeAssets.ts` | Publishes the MediaPipe WASM runtime from `node_modules` under the renderer's own origin |
+
+The camera modules are layered so the parts that need a browser are as small as
+possible: `cameraState.ts`, `framing.ts`, `draw.ts`, `mask.ts` and
+`scheduler.ts` are all free of DOM and media APIs, which is what makes the
+lifecycle and compositing rules testable without hardware.
 
 ## `apps/control-panel`
 

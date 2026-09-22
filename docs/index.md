@@ -31,9 +31,13 @@ control panel → FastAPI event server → WebSocket → renderer → OBS
   viewer-event section that demonstrates the adapter boundary.
 * Reconnect handling: the renderer keeps rendering when the server goes away,
   and re-syncs when it comes back.
+* [Camera compositing](camera.md): the renderer can open a local camera,
+  separate you from your physical background on your own machine, and draw you
+  between the scene's background and foreground effect layers. Camera frames
+  never leave the renderer tab.
 
-No livestream platform integration, AI, camera compositing, audio, persistence
-or authentication exists yet. See the [roadmap](roadmap.md).
+No livestream platform integration, AI, audio, persistence or authentication
+exists yet. See the [roadmap](roadmap.md).
 
 ## Where to start
 
@@ -47,6 +51,8 @@ or authentication exists yet. See the [roadmap](roadmap.md).
   Source.
 * :material-sitemap: **[Architecture](architecture.md)** explains the
   boundaries and why they exist.
+* :material-webcam: **[Camera and Compositing](camera.md)** covers putting
+  yourself inside a scene.
 
 </div>
 
