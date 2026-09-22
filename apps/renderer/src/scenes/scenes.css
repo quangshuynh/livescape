@@ -61,27 +61,6 @@
   bottom: 0;
   height: 12%;
   background: linear-gradient(180deg, rgba(8, 10, 22, 0.1), rgba(4, 6, 14, 0.95));
-  overflow: hidden;
-}
-
-.city__traffic {
-  position: absolute;
-  bottom: 22%;
-  width: 22%;
-  height: 3px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, transparent, rgba(255, 196, 128, 0.85), transparent);
-  filter: blur(1px);
-}
-
-.city__traffic--a {
-  animation: city-traffic-right 9s linear infinite;
-}
-
-.city__traffic--b {
-  bottom: 48%;
-  background: linear-gradient(90deg, transparent, rgba(255, 106, 106, 0.7), transparent);
-  animation: city-traffic-left 13s linear infinite;
 }
 
 @keyframes city-glow-pulse {
@@ -123,24 +102,6 @@
   }
   96% {
     opacity: 0.85;
-  }
-}
-
-@keyframes city-traffic-right {
-  from {
-    transform: translateX(-30vw);
-  }
-  to {
-    transform: translateX(130vw);
-  }
-}
-
-@keyframes city-traffic-left {
-  from {
-    transform: translateX(130vw);
-  }
-  to {
-    transform: translateX(-30vw);
   }
 }
 
@@ -402,7 +363,6 @@
   .city__layer--far,
   .city__layer--near,
   .city__window,
-  .city__traffic,
   .forest__sun,
   .forest__layer--far,
   .forest__layer--mid,
@@ -419,3 +379,4 @@
     opacity: 0.8;
   }
 }
+
