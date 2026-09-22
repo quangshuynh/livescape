@@ -1,0 +1,41 @@
+{
+  "protocolVersion": 1,
+  "scenes": [
+    {
+      "id": "city",
+      "label": "City",
+      "description": "Night skyline with drifting traffic light and window glow."
+    },
+    {
+      "id": "forest",
+      "label": "Forest",
+      "description": "Layered treeline with slow parallax drift and soft daylight."
+    },
+    {
+      "id": "space",
+      "label": "Space",
+      "description": "Deep field starscape with a slow nebula gradient."
+    }
+  ],
+  "effects": [
+    {
+      "id": "rain",
+      "label": "Rain",
+      "description": "Canvas rainfall overlay.",
+      "defaultDurationMs": null
+    },
+    {
+      "id": "snow",
+      "label": "Snow",
+      "description": "Canvas snowfall overlay.",
+      "defaultDurationMs": null
+    },
+    {
+      "id": "fireworks",
+      "label": "Fireworks",
+      "description": "Canvas firework bursts.",
+      "defaultDurationMs": 8000
+    }
+  ],
+  "sources": ["manual", "simulation", "system"]
+}
