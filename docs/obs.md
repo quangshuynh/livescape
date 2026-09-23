@@ -109,6 +109,15 @@ obs64.exe --use-fake-ui-for-media-stream
     in that OBS instance, with no prompt. Only use it if you trust every
     Browser Source URL in your scene collection.
 
+On macOS, with that command line and the camera permission, the following has
+been validated with a physical camera and a real person: the camera opens in
+the Browser Source, segmentation runs locally, Roadside Workshop composites
+around the subject, and scene actions sent through the event server play out
+with Send Bus passing behind the subject and Blow Leaves crossing in front.
+Treat the flags as the tested configuration for that setup rather than a
+requirement of every OBS release. See
+[Verified in OBS](camera.md#verified-in-obs).
+
 Two more things worth knowing:
 
 * Keep the OBS Browser Source on the bare renderer URL. The camera controls
