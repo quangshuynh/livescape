@@ -45,6 +45,11 @@ pedestrians and the occasional gust of leaves arrive on their own. Open the
 renderer with `?setup=1` in a second tab to see that tab's live actor counts
 and spawn an actor there on demand.
 
+While Roadside Workshop is showing, the **Scene actions** card offers Send Car,
+Send Bus, Pedestrians, Blow Leaves and Rush Hour. Press **Send Bus**: a bus
+drives past behind where you would stand. Press it again straight away and the
+card reports that it is cooling down. See [Scene Actions](scene-actions.md).
+
 You can also drive the server directly:
 
 ```bash

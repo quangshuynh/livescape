@@ -10,7 +10,7 @@ tested against a shared allowlist:
 
 | Where | What |
 | --- | --- |
-| `packages/protocol/registry.json` | canonical scene/effect/source allowlist |
+| `packages/protocol/registry.json` | canonical scene/effect/action/source allowlist |
 | `packages/protocol/src/` | TypeScript types, guards and request builders |
 | `services/event-server/src/livescape_event_server/models.py` | Pydantic models |
 | `services/event-server/src/livescape_event_server/registry.json` | server copy of the allowlist |
@@ -47,12 +47,22 @@ TypeScript unions.
 | `scene.change` | client → server → renderer | `{ sceneId, transitionMs }` |
 | `effect.trigger` | client → server → renderer | `{ effectId, intensity, durationMs }` |
 | `effect.clear` | client → server → renderer | `{ effectId \| null }` |
+| `scene.action` | client → server → renderer | `{ actionId }` |
 | `state.sync` | server → renderer only | `{ sceneId, effects[] }` |
 
 `state.sync` is sent to every client the moment it connects, so a renderer that
 joins late — or reconnects after the server restarts — is told what is
 currently on screen instead of snapping back to the default scene. Clients
 cannot send it: `POST /api/events` rejects it with `422`.
+
+### Durable state and transient events
+
+`scene.change`, `effect.trigger` and `effect.clear` are **durable**: the server
+folds them into the state that `state.sync` reports. `scene.action` is
+**transient**: it asks the current scene to do one predefined thing once, is
+broadcast to the clients connected at that moment, and is never recorded, so it
+is never replayed to a client that connects later. See
+[Scene Actions](scene-actions.md).
 
 ## Field bounds
 
@@ -62,6 +72,7 @@ Both runtimes validate these independently.
 | --- | --- |
 | `sceneId` | must be in the registry: `city`, `forest`, `space`, `roadside-workshop` |
 | `effectId` | must be in the registry: `rain`, `snow`, `fireworks` |
+| `actionId` | must be in the registry, for example `roadside.send-bus`; see [Scene Actions](scene-actions.md#actions). It is the whole payload |
 | `transitionMs` | integer, `0 … 10000`, default `900` |
 | `intensity` | number, `0.01 … 1`, default `1` |
 | `durationMs` | integer `100 … 600000`, or `null` for "run until cleared". If omitted, the registry default for that effect is used (`fireworks` → 8000, others → `null`) |
@@ -86,6 +97,15 @@ Clients `POST /api/events` with the envelope minus `id` and `timestamp`:
 }
 ```
 
+```jsonc
+{
+  "version": 1,
+  "type": "scene.action",
+  "source": "manual",
+  "payload": { "actionId": "roadside.send-bus" }
+}
+```
+
 The response is `202 Accepted`:
 
 ```jsonc
@@ -95,13 +115,22 @@ The response is `202 Accepted`:
 }
 ```
 
+A `scene.action` that is valid but cannot run now is refused without being
+broadcast: `409 Conflict` when the current scene does not own it, and
+`429 Too Many Requests` while it is inside its cooldown. See
+[Event Server API](api.md#post-apievents).
+
 ## Safety rules
 
 These are properties of the design, not conventions:
 
-* Scene and effect ids resolve through an **explicit allowlist registry** on
-  both sides. The renderer looks scenes up in a fixed component map and effects
-  up in a fixed factory; an unknown id cannot reach either.
+* Scene, effect and action ids resolve through an **explicit allowlist
+  registry** on both sides. The renderer looks scenes up in a fixed component
+  map, effects up in a fixed factory, and actions up in the owning scene's
+  definition; an unknown id cannot reach any of them.
+* A scene action selects a predefined capability by id. It carries no
+  parameters, so it cannot describe an actor, a sprite, an asset, a selector or
+  any other renderer behaviour.
 * Payloads never carry code, shell commands, file paths, URLs or prompts, and
   there is no generic "execute action" event.
 * The WebSocket is a **read-only subscription**. Inbound frames are drained so

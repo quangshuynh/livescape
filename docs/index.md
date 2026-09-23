@@ -34,6 +34,10 @@ panel already speaks; none exist yet.
 * **Layered scene composition.** Scenes place artwork and seeded, autonomous
   actors on planes behind and in front of the subject. In Roadside Workshop,
   traffic passes behind you and leaves blow past in front.
+* **Scene actions.** An event can ask the current scene to do one predefined
+  thing, such as sending a bus past behind you or a gust of leaves in front,
+  selected by an allowlisted id and bounded by per-action cooldowns. See
+  [Scene Actions](scene-actions.md).
 * **Camera compositing** with three modes: **Off** (the default on every
   load), **Raw**, and **Segmented**, which removes your physical background with
   a segmentation model running locally. See
@@ -75,6 +79,8 @@ exists yet. See the [Roadmap](roadmap.md).
   yourself inside a scene.
 * :material-layers: **[Scenes and Effects](scenes-and-effects.md)** covers
   planes, actors and Roadside Workshop.
+* :material-gesture-tap: **[Scene Actions](scene-actions.md)** covers
+  triggering predefined scene events safely.
 
 </div>
 

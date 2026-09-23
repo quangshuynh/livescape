@@ -61,11 +61,18 @@ Python package installed with `pip install -e "services/event-server[dev]"`.
 2. FastAPI validates it against the Pydantic models in `models.py`. A rejection
    is a `422` and never reaches a renderer.
 3. `envelope_from_request` stamps a server-owned `id` and `timestamp`.
-4. `SceneState.apply` folds the envelope into in-memory state.
+4. `SceneState.apply` folds the envelope into in-memory state. A
+   `scene.action` is transient and is not folded: before stamping it,
+   `ActionGate.admit` (`actions.py`) refuses it with `409` if the current scene
+   does not own it or `429` (`Retry-After`, `retryAfterMs`) inside its cooldown,
+   and nothing is broadcast.
 5. `ConnectionHub.broadcast` fans the envelope out to every WebSocket client
    concurrently. A failing client is dropped without affecting the others.
 6. Each renderer re-validates the frame with `parseEventJson` and folds it into
-   `rendererState` with a pure reducer.
+   `rendererState` with a pure reducer. `scene.action` bypasses the reducer:
+   `App` first brings the director up to the scene the stream last asked for
+   (a scene change may not have rendered yet), then calls
+   `SceneDirector.act(actionId)`.
 
 A client that connects to `/ws` is sent a `state.sync` envelope immediately, so
 a late or reconnecting renderer adopts the current scene instead of snapping
@@ -81,11 +88,25 @@ wire.
 | `scene.change` | client → server → renderer | `{ sceneId, transitionMs }` |
 | `effect.trigger` | client → server → renderer | `{ effectId, intensity, durationMs }` |
 | `effect.clear` | client → server → renderer | `{ effectId \| null }` |
+| `scene.action` | client → server → renderer | `{ actionId }` (transient) |
 | `state.sync` | server → renderer only | `{ sceneId, effects[] }` |
 
 Sources: `manual`, `simulation`, `system`. Bounds: `transitionMs` 0 to 10000
 (default 900), `intensity` 0.01 to 1 (default 1), `durationMs` 100 to 600000 or
-`null` for "run until cleared". Unknown fields are rejected (`extra: "forbid"`).
+`null` for "run until cleared". Unknown fields are rejected (`extra: "forbid"`)
+on the server; the TypeScript parser drops them.
+
+Durable vs transient: `scene.change` and `effect.*` are state and reach late
+clients through `state.sync`. `scene.action` is never stored by the server or
+the renderer, so it is never replayed; a renderer disconnected when it is
+broadcast never sees it.
+
+**Scene actions** are registry entries `{ id, sceneId, label, description,
+cooldownMs }` (7 today: `roadside.send-car|send-bus|pedestrians|blow-leaves|
+rush-hour`, `forest.bird-flock`, `space.shooting-star`). Parity: `SCENE_ACTION_IDS`
+in `registry.ts` and the `SceneActionId` literal in `registry.py` are checked
+against the JSON at import/load, including owner scene and cooldown bounds
+(250 ms to 60 s).
 
 The protocol is defined twice, once per runtime, and both are validated against
 the same allowlist. `packages/protocol/registry.json` is canonical;
@@ -103,7 +124,8 @@ Full reference: [docs/protocol.md](docs/protocol.md).
 * Reconnects with exponential backoff and jitter, 500 ms up to 8 s, forever.
 * Keeps the current scene on screen when the server disappears.
 * Resolves scene ids through `SCENES`, a fixed map of scene definitions, and
-  effect ids through a fixed particle-system factory.
+  effect ids through a fixed particle-system factory. Action ids resolve
+  through the owning scene definition's `actions`.
 * Crossfades scenes, expires timed effects on a 250 ms tick, and honors
   `prefers-reduced-motion` by holding scenes still (no CSS ambience, no ambient
   actors) and cutting particle budgets.
@@ -115,7 +137,10 @@ Full reference: [docs/protocol.md](docs/protocol.md).
 
 **Event server** (`services/event-server`)
 
-* Validates, stamps, stores, and broadcasts. It does nothing else.
+* Validates, stamps, stores, and broadcasts. It does nothing else. For scene
+  actions it also admits (scene ownership, per-action cooldown) and does not
+  store. `/healthz` reports `actionCooldowns` (ms left per cooling action);
+  cooldown time comes from `app.state.clock`, which tests replace.
 * Endpoints: `GET /healthz`, `GET /api/registry`, `POST /api/events` (`202` on
   success), `WS /ws`.
 * `/ws` is a read-only subscription. Inbound frames are drained so disconnects
@@ -126,6 +151,11 @@ Full reference: [docs/protocol.md](docs/protocol.md).
 **Control panel** (`apps/control-panel`)
 
 * Scene buttons, effect triggers with intensity, and clear controls.
+* A Scene actions card listing only the current scene's actions (from
+  `/healthz` `currentScene` and the registry). One replaced status line for
+  feedback (`sceneActions.ts`); cooling buttons stay clickable so server
+  throttling can be exercised; server-reported cooldowns merge in using the
+  health response's local `receivedAt`.
 * A clearly labelled "simulated viewer event" section that maps a pretend gift,
   follow, or chat command onto a normalized `effect.trigger` tagged
   `source: "simulation"`. It demonstrates the adapter boundary; it observes no
@@ -168,8 +198,23 @@ scene showing and a subscription per plane. Caps: 24 actors per scene hard
 limit, per-scene `maxActors`, per-spawner `maxAlive`, min interval 500 ms,
 burst up to 8. Lanes are exclusive; late wake-ups never burst. Depth within a
 plane is the ground-line y, applied as z-index. `trigger(spawnerId)` spawns on
-demand within caps; only the setup panel calls it. Reduced motion removes
+demand within caps; only the setup panel calls it. A spawner with no
+`initialDelayMs`/`intervalMs` is on-demand only. Reduced motion removes
 ambient actors and stops spawning; triggered actors run at half speed.
+`ActorInstance.triggered` marks on-demand actors (`data-triggered` in the DOM,
+counted in diagnostics).
+
+**Scene actions** (`SceneDefinition.actions`, run by `ActorPopulation.act`):
+`spawn` (first listed spawner with room) or `surge` (listed spawners on a
+faster interval for `durationMs` ≤ 60 s, own schedule, ambient untouched).
+Renderer outcomes: `started`, `queued` (no room; one waiting slot per action,
+5 s, retried in `advance` before ambient spawns), `coalesced`, `cooldown`
+(registry cooldown minus 250 ms jitter allowance), `reduced-motion` (surges
+refused; spawns at half speed, burst ≤ 2), `inactive`, `unsupported`, plus
+`wrong-scene` from the director. Waiting and surges are in `nextDueAt`, so
+still one timer per scene; `retire`/`stop`/reduced motion cancel them. The
+director only routes to the current showing, never to one fading out, and
+records `lastAction` for diagnostics.
 
 **Rendering.** `ActorPlane` renders one element per actor and hands its whole
 path to one linear Web Animation (compositor thread). Positions are
@@ -280,10 +325,10 @@ Every value is also the built-in default, so no `.env` file is required.
 
 | Suite | Count |
 | --- | --- |
-| `services/event-server/tests` (pytest) | 51 |
-| `packages/protocol` (Vitest) | 23 |
-| `apps/control-panel` (Vitest) | 20 |
-| `apps/renderer` (Vitest) | 355 |
+| `services/event-server/tests` (pytest) | 78 |
+| `packages/protocol` (Vitest) | 45 |
+| `apps/control-panel` (Vitest) | 31 |
+| `apps/renderer` (Vitest) | 402 |
 
 Coverage is concentrated on protocol validation, the state reducer on both
 sides, broadcast and disconnect behaviour, WebSocket handshake and `state.sync`,
@@ -292,7 +337,9 @@ duty cycle, frame/mask synchronisation, temporal filter, edge refinement,
 compositing and layer order, regressions with the camera active, and scene
 composition: actor spawning, caps, lanes, cleanup, determinism, reduced motion,
 director lifecycle and stage order around the subject in raw and segmented
-modes. No test needs a camera, a GPU, or OBS. Media, segmentation, the canvas
+modes, and scene actions: allowlist and parity, ownership, planes, cooldowns,
+50-request bursts on the server and in the renderer, cleanup on scene change,
+reduced motion, and no replay on reconnect. No test needs a camera, a GPU, or OBS. Media, segmentation, the canvas
 and the scene clock (`FakeClock`) are faked in `apps/renderer/src/test/`.
 
 Verification commands:
@@ -324,9 +371,14 @@ third-party scripts. Header logo and favicon are small derivatives of
 ## Invariants
 
 * The renderer never learns about a platform. Adapters normalize upstream.
-* Scene and effect ids resolve through the registry allowlist on both sides.
+* Scene, effect and action ids resolve through the registry allowlist on both
+  sides.
 * Payloads carry no code, paths, URLs, or prompts, and there is no generic
-  "execute action" event.
+  "execute action" event. A scene action is an id only; it selects a
+  capability the scene already implements.
+* Scene actions are transient: never in server state, `state.sync` or renderer
+  state. Ownership and cooldown are enforced by the server and again by the
+  renderer; everything an action spawns stays inside actor caps.
 * `id` and `timestamp` are server-owned.
 * The WebSocket is read-only from the client's perspective.
 * Both runtimes validate independently; the renderer re-validates every frame.
@@ -348,6 +400,12 @@ third-party scripts. Header logo and favicon are small derivatives of
 * No authentication or authorization on the control API.
 * No platform integration. The control panel and its simulation section are the
   only event sources.
+* Scene actions take no parameters and are one-shot or timed; City has none.
+  The renderer's cooldown and waiting state is per showing, so returning to a
+  scene resets it (the server's cooldown still applies).
+* Scene actions have been exercised in the in-app browser and in headless
+  Brave with a synthetic camera (Raw ordering, Segmented costs), not with a
+  real person or in OBS.
 * Segmentation runs on the main thread. `segmentForVideo` is synchronous, so
   inference competes with rendering. Measured ~17 ms per mask (mostly GPU
   readback) plus ~3 ms matte processing at 30/s on an Apple M1 in headless
@@ -375,6 +433,7 @@ third-party scripts. Header logo and favicon are small derivatives of
   lifecycle do not change.
 * Judge the synchronised matte with a real person in Brave and in OBS, using
   the manual validation matrix, and re-measure in OBS.
-* Event-triggered scene actions through a registry-allowlisted action id that
-  maps onto `ActorEngine.trigger`, without a free-form "execute" event.
-* Platform adapters as separate processes that speak the existing protocol.
+* Platform adapters as separate processes that speak the existing protocol,
+  mapping platform events onto existing scene actions.
+* Judge Send Bus and Blow Leaves around a real person in Segmented mode and in
+  an OBS Browser Source.

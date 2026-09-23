@@ -24,7 +24,7 @@ The canonical TypeScript definition of the event protocol.
 
 | File | Contents |
 | --- | --- |
-| `registry.json` | Canonical allowlist of scenes, effects and sources |
+| `registry.json` | Canonical allowlist of scenes, effects, scene actions and sources |
 | `src/registry.ts` | Id unions, type guards, registry lookups. Throws at import time if the JSON and the unions disagree |
 | `src/events.ts` | Envelope and payload types |
 | `src/validate.ts` | Runtime validation, shared bounds, request builders |
@@ -39,8 +39,8 @@ It is consumed as source, not as a build artifact: the apps import
 | `src/App.tsx` | The stage: scene planes, effect planes and the camera layer in stage order, plus the debug overlay |
 | `src/useEventStream.ts` | WebSocket subscription and reconnect backoff |
 | `src/rendererState.ts` | Pure reducer folding protocol events into renderer state |
-| `src/scenes/` | Scene artwork per plane, the `SCENES` definitions, the scene director that runs showings and crossfades, and the plane component |
-| `src/actors/` | The actor vocabulary and validation, the pure population model, the timer-driven engine, sprite artwork, and the plane that animates actors |
+| `src/scenes/` | Scene artwork per plane, the `SCENES` definitions and their scene actions, the scene director that runs showings and crossfades and routes actions, and the plane component |
+| `src/actors/` | The actor vocabulary and validation, the pure population model (including scene actions, cooldowns and surges), the timer-driven engine, sprite artwork, and the plane that animates actors |
 | `src/effects/` | Canvas particle systems and the layer that drives them |
 | `src/camera/` | Camera lifecycle: pure state reducer, media access, and the hook that owns the `MediaStream` |
 | `src/segmentation/` | The `SubjectSegmenter` boundary, the MediaPipe backend, the latest-frame scheduler, frame/mask synchronisation, the temporal filter, edge refinement, mask shaping and quality presets |
@@ -63,6 +63,7 @@ lifecycle and compositing rules testable without hardware.
 | `src/App.tsx` | The operator UI |
 | `src/api.ts` | HTTP client, health types, rejection formatting |
 | `src/simulation.ts` | Maps simulated viewer actions onto normalized events |
+| `src/sceneActions.ts` | Feedback text and cooldown bookkeeping for the scene action controls |
 | `src/useEventFeed.ts` | Live activity feed over the WebSocket |
 | `src/useServerHealth.ts` | Health polling for the connection indicator |
 
@@ -74,6 +75,7 @@ lifecycle and compositing rules testable without hardware.
 | `models.py` | Pydantic protocol models and shared bounds |
 | `registry.py` / `registry.json` | Server copy of the allowlist |
 | `state.py` | In-memory scene and effect state, with expiry tracking |
+| `actions.py` | Scene action admission: scene ownership and per-action cooldowns |
 | `hub.py` | Connection registry and concurrent broadcast |
 | `config.py` | Environment-driven settings |
 
