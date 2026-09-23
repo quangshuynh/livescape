@@ -42,5 +42,56 @@
       "defaultDurationMs": 8000
     }
   ],
+  "actions": [
+    {
+      "id": "roadside.send-car",
+      "sceneId": "roadside-workshop",
+      "label": "Send Car",
+      "description": "A car drives past on the street behind the subject.",
+      "cooldownMs": 1500
+    },
+    {
+      "id": "roadside.send-bus",
+      "sceneId": "roadside-workshop",
+      "label": "Send Bus",
+      "description": "A bus drives slowly past on the street behind the subject.",
+      "cooldownMs": 8000
+    },
+    {
+      "id": "roadside.pedestrians",
+      "sceneId": "roadside-workshop",
+      "label": "Pedestrians",
+      "description": "A small group walks along the near sidewalk.",
+      "cooldownMs": 5000
+    },
+    {
+      "id": "roadside.blow-leaves",
+      "sceneId": "roadside-workshop",
+      "label": "Blow Leaves",
+      "description": "A gust carries leaves across the front of the scene, in front of the subject.",
+      "cooldownMs": 3000
+    },
+    {
+      "id": "roadside.rush-hour",
+      "sceneId": "roadside-workshop",
+      "label": "Rush Hour",
+      "description": "Traffic and foot traffic pick up for twenty seconds, then return to normal.",
+      "cooldownMs": 30000
+    },
+    {
+      "id": "forest.bird-flock",
+      "sceneId": "forest",
+      "label": "Bird Flock",
+      "description": "A flock of birds crosses the sky above the treeline.",
+      "cooldownMs": 5000
+    },
+    {
+      "id": "space.shooting-star",
+      "sceneId": "space",
+      "label": "Shooting Star",
+      "description": "A meteor streaks across the starfield.",
+      "cooldownMs": 3000
+    }
+  ],
   "sources": ["manual", "simulation", "system"]
 }
