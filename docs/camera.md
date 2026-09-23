@@ -505,12 +505,19 @@ platforms may behave differently.
 
 ### Verified in OBS
 
-With a physical camera and a real person, on macOS with OBS Studio 32.2.2
-started as above: the camera opened inside the Browser Source; Raw and
-Segmented modes both ran; scenes switched while the camera stayed active; and
-Roadside Workshop composited around the subject. That validation predates the
-current matte pipeline, which has been benchmarked in a Chromium browser but
-not yet re-run in OBS.
+With a physical camera and a real person, in an OBS Browser Source on macOS,
+with OBS started with the flags above and allowed to use the camera in System
+Settings, running the current synchronised matte pipeline:
+
+* the renderer loads and draws scenes in the Browser Source;
+* the physical camera opens inside the Browser Source;
+* segmentation runs locally, removing the physical background;
+* Roadside Workshop composites around the segmented subject;
+* scene actions sent through the event server play out: **Send Bus** passes
+  behind the subject and **Blow Leaves** crosses in front of the subject.
+
+That is the tested macOS configuration. It is not a claim that every OBS
+release or platform needs, or accepts, the same flags.
 
 Exercised in OBS Studio 32.2.1 (obs-browser 2.26.9, CEF 127.0.6533.120) with
 the built renderer served over HTTP:
@@ -608,9 +615,13 @@ These are real and worth knowing before you rely on this.
   that low light, noise, fast motion and large occluders all degrade it. Edge
   refinement follows brightness edges only, so hair against a background of
   similar brightness is not improved.
-* **The current matte pipeline has not been judged against a real person yet.**
-  Its costs were measured with a synthetic camera; how it looks on camera is
-  what the manual validation has to establish.
+* **Real-person quality depends on lighting.** With a physical camera and a
+  real person, in Brave and in OBS, showing each frame with its own mask
+  clearly reduced background leaking around a moving subject. Low light makes
+  the matte substantially worse. Hair and thin fingers remain the hardest
+  parts: an individual finger can briefly disappear, or the gap between
+  fingers can fill in. These are known limits of the current model, not
+  regressions.
 * **The model finds people, not you specifically.** It may include other people
   in the frame, and it is not intended for subjects more than about four metres
   away.

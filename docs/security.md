@@ -88,12 +88,35 @@ implements.
 ## Platform integrations
 
 No livestream platform is connected. The control panel's simulated viewer
-events are development stand-ins, labelled as such in the UI, and they observe
-no real viewer.
+events and the platform adapter's simulator are development stand-ins,
+labelled as such, and they observe no real viewer.
 
-When platform adapters arrive, they will use official and compliant APIs, run
-as separate optional processes, and speak the same normalized protocol. An
-adapter failing must never break the renderer.
+The [platform adapter](platform-adapters.md) is the boundary real integrations
+will use, and it is designed around these rules:
+
+* It is a separate, optional process with no privileges the control panel
+  lacks. It submits ordinary `scene.action` requests over loopback HTTP, and
+  refuses to start if pointed at a non-loopback server. It ignores proxy
+  settings and does not follow redirects.
+* Its mapping file can only name allowlisted scene actions. It cannot contain
+  code, commands, URLs, paths, prompts, markup or actor definitions; unknown
+  keys stop the adapter at startup.
+* Normalized platform events carry no viewer data. Names, profiles, avatars and
+  every other identifying field are dropped at the edge, and nothing is
+  persisted: no viewer database, no event log, no analytics.
+* Bursts and outages cannot build a backlog. Memory is bounded, requests are
+  never retried, and stale or redelivered events are dropped.
+* Its counts describe visual behaviour and are not an accounting of gifts or
+  money.
+
+Real integrations will use official and documented platform APIs only, with no
+scraping and no unofficial clients, and platform credentials will come from the
+operator's environment, never the repository. An adapter failing never breaks
+the renderer: the scene on screen is unaffected.
+
+The adapter adds no new listener, so the local trust model is unchanged: any
+local process could already POST to the loopback event server, and the adapter
+is one such process.
 
 ## Reporting a problem
 

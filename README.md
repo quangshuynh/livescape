@@ -62,12 +62,20 @@ What exists and is verified:
   and re-syncs when it comes back;
 * **camera compositing**: the renderer opens a local camera, removes your
   physical background with a segmentation model that runs on your machine, and
-  draws you between the parts of the scene behind you and in front of you.
+  draws you between the parts of the scene behind you and in front of you;
+* a **platform adapter**, a separate local process that normalizes external
+  events, maps them onto scene actions through a declarative mapping file, and
+  handles duplicates, bursts and server outages without building a backlog.
+  Its only source today is a built-in simulator.
 
-What does **not** exist yet: any livestream platform integration, AI, audio,
-persistence or authentication. See [Roadmap](#roadmap). Nothing in this
-repository talks to TikTok, YouTube or any other platform, and the simulated
-events in the control panel are labelled as what they are.
+Validated with a physical camera and a real person in a Chromium-based browser
+and in an OBS Browser Source on macOS, including Send Bus passing behind the
+person and Blow Leaves crossing in front of them.
+
+What does **not** exist yet: any real livestream platform integration, AI,
+audio, persistence or authentication. See [Roadmap](#roadmap). Nothing in this
+repository talks to TikTok, YouTube or any other platform, and simulated events
+are labelled as what they are.
 
 ## Architecture
 
@@ -106,6 +114,7 @@ apps/
   control-panel/   React + Vite operator UI
 services/
   event-server/    FastAPI event server (Python 3.13+)
+  platform-adapter/  Platform adapter: normalize, map, submit (Python, stdlib only)
 packages/
   protocol/        Shared TypeScript protocol types, guards and registry
 docs/              Documentation site sources (MkDocs)
@@ -218,6 +227,17 @@ command) onto a normalized `effect.trigger` event tagged `source: "simulation"`,
 which is exactly what a real platform adapter will do later. It does not
 observe any real viewer, and no platform is connected.
 
+The **platform adapter** drives scene actions the way a real platform
+integration would, from simulated platform events:
+
+```bash
+python -m pip install -e "services/platform-adapter"
+python -m livescape_platform_adapter bus leaves   # switch to Roadside Workshop first
+```
+
+See [docs/platform-adapters.md](docs/platform-adapters.md) for the event model,
+mapping file and failure behaviour.
+
 You can also drive the server directly:
 
 ```bash
@@ -267,6 +287,9 @@ reconnect behaviour are in [docs/scene-actions.md](docs/scene-actions.md).
 python -m ruff check services/event-server
 python -m ruff format --check services/event-server
 python -m pytest services/event-server
+python -m ruff check services/platform-adapter
+python -m ruff format --check services/platform-adapter
+python -m pytest services/platform-adapter
 
 # TypeScript: lint, typecheck, tests, production build
 npm run lint
@@ -303,8 +326,8 @@ a strict build in CI, and merges to `main` publish it to GitHub Pages.
   it comes back on the default scene.
 * **No authentication.** The control API is unauthenticated and intended for
   loopback use only. Do not expose it to an untrusted network.
-* **No platform integration.** Simulated events are the only event source
-  besides the control panel.
+* **No real platform integration.** The platform adapter's only source is a
+  simulator, and the control panel's viewer events are simulated too.
 * **Segmentation runs on the main thread.** MediaPipe's video API is
   synchronous, so inference competes with rendering. A duty-cycle cap keeps the
   page's frame rate by lowering the subject's update rate on slow machines, but
@@ -326,10 +349,9 @@ a strict build in CI, and merges to `main` publish it to GitHub Pages.
 
 Everything below is future work, not current functionality.
 
-* **Platform adapters** that translate real livestream events into the existing
-  protocol, including the existing scene actions, using official and compliant
-  APIs only.
-* **Viewer gift and event integrations** where they are officially available.
+* **Real platform sources** for the platform adapter, using official and
+  documented APIs only, starting with whichever platform officially exposes
+  real-time events such as gifts.
 * **More scenes and effects**, and a richer effect-composition model.
 * **Segmentation in a Web Worker**, so inference stops competing with the
   render loop.

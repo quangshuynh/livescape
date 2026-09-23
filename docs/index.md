@@ -48,17 +48,21 @@ panel already speaks; none exist yet.
   goes away, and re-syncs when it comes back.
 * Reduced motion: with `prefers-reduced-motion`, scenes hold still and effects
   run lighter.
+* A [platform adapter](platform-adapters.md) that maps normalized external
+  events onto scene actions, exercised with a built-in simulator.
 
-No livestream platform integration, AI, audio, persistence or authentication
-exists yet. See the [Roadmap](roadmap.md).
+No real livestream platform integration, AI, audio, persistence or
+authentication exists yet. See the [Roadmap](roadmap.md).
 
 !!! note "What has been validated"
 
     The camera pipeline has run with a physical camera and a real person, in
-    a Chromium browser and inside an OBS Browser Source on macOS, including
-    Roadside Workshop composited around the subject. The current matte
-    pipeline's costs were measured with a synthetic camera; its visual quality
-    on a real person has not been judged yet. The
+    a Chromium-based browser and inside an OBS Browser Source on macOS: Raw
+    and Segmented modes, scene switching with the camera active, and Roadside
+    Workshop composited around the subject, with Send Bus passing behind the
+    person and Blow Leaves crossing in front. Performance figures were measured
+    with a synthetic camera. Platform adapters have been exercised with
+    simulated events only; no livestream platform is connected. The
     [camera](camera.md#verified-in-obs) and
     [scenes](scenes-and-effects.md#performance) pages record exactly what was
     measured.

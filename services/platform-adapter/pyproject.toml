@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "livescape-platform-adapter"
+version = "0.1.0"
+description = "Local LiveScape platform adapter: normalizes external platform events and maps them onto existing scene actions."
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+# Standard library only. The adapter talks to the event server over plain
+# loopback HTTP and reads its mapping file with tomllib.
+dependencies = []
+
+[project.optional-dependencies]
+# The integration tests also need the event server installed from this
+# repository (`pip install -e "services/event-server[dev]"`). It is not listed
+# here because it is not published to a package index.
+dev = [
+    "pytest>=8.4",
+    "ruff>=0.14",
+]
+
+[project.scripts]
+livescape-platform-adapter = "livescape_platform_adapter.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/livescape_platform_adapter"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+    "error",
+    # Upstream deprecation churn (starlette/anyio/uvicorn) is not ours to fix here.
+    "ignore::DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF"]

@@ -96,6 +96,7 @@ nav:
       - Architecture: architecture.md
       - Scenes and Effects: scenes-and-effects.md
       - Scene Actions: scene-actions.md
+      - Platform Adapters: platform-adapters.md
       - Camera and Compositing: camera.md
   - Reference:
       - Event Protocol: protocol.md

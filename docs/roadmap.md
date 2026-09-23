@@ -10,7 +10,7 @@ Everything under **Planned** is future work. For what exists today, see the
 | --- | --- |
 | No persistence | Scene state lives in memory. Restart the event server and it comes back on the default scene. |
 | No authentication | The control API is unauthenticated and intended for loopback use only. |
-| No platform integration | The control panel and its simulation section are the only event sources. |
+| No real platform integration | The [platform adapter](platform-adapters.md) exists, but its only source is a simulator. No livestream platform is connected. |
 | Few scene actions | Seven actions across three scenes; City has none. Actions are one-shot or timed and take no parameters. |
 | Segmentation runs on the main thread | MediaPipe's video API is synchronous, so inference competes with rendering. See [Camera and Compositing](camera.md#limitations). |
 | Camera in OBS needs launch flags | An OBS Browser Source refuses `getUserMedia` unless OBS is started with `--use-fake-ui-for-media-stream` (on macOS, validated together with `--enable-media-stream`). |
@@ -27,12 +27,17 @@ does not touch the compositor or the camera lifecycle.
 **Scene-aware effects**, so weather and fireworks can respect a scene's indoor
 framing.
 
-**Platform adapters** that translate real livestream events into the existing
-protocol, using official and compliant APIs only, including mapping platform
-events onto the existing [scene actions](scene-actions.md). They run as separate optional
-processes. The renderer will not learn anything about them.
+**Real platform sources** for the [platform adapter](platform-adapters.md),
+using official and documented APIs only. Each is a new platform source beside
+the simulator; the mapping engine, the event server and the renderer do not
+change. Which platform comes first depends on which one officially exposes
+real-time events such as gifts. At the time of writing, TikTok's public
+developer documentation lists no API that delivers real-time LIVE events to
+third-party applications, so a TikTok integration is not something this
+project can build on today.
 
-**Viewer gift and event integrations** where they are officially available.
+**A platform-neutral protocol `source`** for adapter traffic from real
+platforms, so it is distinguishable from simulation without naming a platform.
 
 **More scenes and effects**, and a richer effect-composition model.
 

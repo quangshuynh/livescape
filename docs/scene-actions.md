@@ -59,7 +59,8 @@ panel should call it, and how often it may run. The same parity protection as
 scenes and effects applies: `registry.ts` throws at import time if the JSON and
 the declared `SceneActionId` union disagree or an action names an unknown scene
 or an out-of-range cooldown (250 ms to 60 s); `registry.py` does the same on the
-server; and `tests/test_registry.py` fails if the two JSON copies drift.
+server; and each Python package's `tests/test_registry.py` fails if its JSON
+copy drifts from the canonical one.
 
 How a scene performs an action is renderer data, next to the scene's spawners
 in `apps/renderer/src/scenes/index.ts`:
@@ -205,26 +206,28 @@ action still waiting or surging. The clean OBS URL shows none of it.
 
 ## The adapter boundary
 
-No livestream platform is connected. When adapters exist, they sit upstream of
-the event server and select an existing capability:
+The [platform adapter](platform-adapters.md) sits upstream of the event server
+and selects an existing capability:
 
 ```text
-platform event
-  → platform adapter (separate process)
-  → normalized scene.action { actionId }
+platform event (simulated today)
+  → platform adapter (separate process): normalize, map, dedup, coalesce
+  → scene.action { actionId }
   → the same validation, ownership and cooldown checks
   → the same renderer
 ```
 
 An adapter cannot describe new behaviour, only choose among the actions in the
 registry, and the renderer never learns where an action came from beyond its
-`source`. Which platform event maps to which action is the adapter's concern
-and is not part of LiveScape today.
+`source`. Which platform event maps to which action is declared in the
+adapter's mapping file, not in LiveScape's protocol or scenes. No real
+livestream platform is connected; the adapter's only source is a simulator.
 
 ## Adding an action
 
 1. Add the entry to `packages/protocol/registry.json` and copy the file to
-   `services/event-server/src/livescape_event_server/registry.json`.
+   `services/event-server/src/livescape_event_server/registry.json` and
+   `services/platform-adapter/src/livescape_platform_adapter/registry.json`.
 2. Add the id to `SCENE_ACTION_IDS` in `packages/protocol/src/registry.ts` and
    to the `SceneActionId` literal in `registry.py`.
 3. Implement it in the owning scene's `actions`, using spawners the scene
