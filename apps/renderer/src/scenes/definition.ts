@@ -1,9 +1,15 @@
 import type { ComponentType } from 'react';
-import type { SceneId } from '@livescape/protocol';
+import { actionsForScene, sceneActionEntry, type SceneActionId, type SceneId } from '@livescape/protocol';
 
 import { ActorEngine, type EngineClock } from '../actors/engine.js';
-import { SCENE_LAYERS, type ActorSpawnerDefinition, type SceneLayer } from '../actors/types.js';
-import { MAX_ACTORS_PER_SCENE, validateSpawner } from '../actors/validate.js';
+import type { PopulationAction } from '../actors/population.js';
+import {
+  SCENE_LAYERS,
+  type ActorSpawnerDefinition,
+  type SceneActionEffect,
+  type SceneLayer,
+} from '../actors/types.js';
+import { MAX_ACTORS_PER_SCENE, validateActionEffect, validateSpawner } from '../actors/validate.js';
 import { mulberry32 } from './random.js';
 
 /** Static artwork per plane. Each is a plain component with no props. */
@@ -24,6 +30,12 @@ export interface SceneDefinition {
   readonly actors: readonly ActorSpawnerDefinition[];
   /** Upper bound on live actors; clamped to `MAX_ACTORS_PER_SCENE`. */
   readonly maxActors: number;
+  /**
+   * How this scene performs the registry actions it owns. Keys must be
+   * actions the protocol registry assigns to this scene; label and cooldown
+   * come from the registry, never from here.
+   */
+  readonly actions?: Partial<Record<SceneActionId, SceneActionEffect>>;
 }
 
 export function validateSceneDefinition(definition: SceneDefinition): string[] {
@@ -46,7 +58,46 @@ export function validateSceneDefinition(definition: SceneDefinition): string[] {
     seen.add(spawner.id);
     errors.push(...validateSpawner(spawner).map((error) => `${definition.id}: ${error}`));
   }
+  const spawnerIds = definition.actors.map((spawner) => spawner.id);
+  const owned = actionsForScene(definition.id).map((action) => action.id);
+  for (const [actionId, effect] of Object.entries(definition.actions ?? {})) {
+    if (!(owned as readonly string[]).includes(actionId)) {
+      errors.push(`${definition.id}: action "${actionId}" is not one of this scene's registry actions`);
+      continue;
+    }
+    errors.push(
+      ...validateActionEffect(actionId, effect, spawnerIds).map((error) => `${definition.id}: ${error}`),
+    );
+  }
+  for (const actionId of owned) {
+    if (!definition.actions?.[actionId]) {
+      errors.push(`${definition.id}: registry action "${actionId}" is not implemented`);
+    }
+  }
   return errors;
+}
+
+/**
+ * The actions a scene can run: registry actions it owns and implements with
+ * spawners that passed validation, each with its registry cooldown.
+ */
+export function sceneActions(
+  definition: SceneDefinition,
+  spawners: readonly ActorSpawnerDefinition[],
+): PopulationAction[] {
+  const spawnerIds = spawners.map((spawner) => spawner.id);
+  const actions: PopulationAction[] = [];
+  for (const entry of actionsForScene(definition.id)) {
+    const effect = definition.actions?.[entry.id];
+    if (!effect) continue;
+    const errors = validateActionEffect(entry.id, effect, spawnerIds);
+    if (errors.length > 0) {
+      console.warn(`LiveScape: ignoring scene action in ${definition.id}`, errors);
+      continue;
+    }
+    actions.push({ id: entry.id, cooldownMs: sceneActionEntry(entry.id).cooldownMs, effect });
+  }
+  return actions;
 }
 
 export interface SceneEngineOptions {
@@ -72,6 +123,7 @@ export function createSceneEngine(
   });
   return new ActorEngine({
     spawners,
+    actions: sceneActions(definition, spawners),
     maxActors: definition.maxActors,
     random: options.random ?? mulberry32(definition.seed),
     reducedMotion: options.reducedMotion,

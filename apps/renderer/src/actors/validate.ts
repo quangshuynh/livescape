@@ -1,11 +1,13 @@
 import { isSpriteId } from './sprites.js';
-import { SCENE_LAYERS, type ActorSpawnerDefinition, type Range } from './types.js';
+import { SCENE_LAYERS, type ActorSpawnerDefinition, type Range, type SceneActionEffect } from './types.js';
 
 /** No scene may keep more actors than this alive, whatever it asks for. */
 export const MAX_ACTORS_PER_SCENE = 24;
 /** Spawners cannot fire faster than this, which bounds timer churn. */
 export const MIN_SPAWN_INTERVAL_MS = 500;
 export const MAX_BURST = 8;
+/** A surge action can never keep a scene busier than this. */
+export const MAX_SURGE_MS = 60_000;
 
 const TINT = /^#[0-9a-f]{6}$/i;
 
@@ -73,8 +75,12 @@ export function validateSpawner(spawner: ActorSpawnerDefinition): string[] {
   }
 
   const { spawn } = spawner;
-  checkRange(errors, at('spawn.initialDelayMs'), spawn.initialDelayMs, { min: 0 });
-  checkRange(errors, at('spawn.intervalMs'), spawn.intervalMs, { min: MIN_SPAWN_INTERVAL_MS });
+  if (spawn.initialDelayMs && spawn.intervalMs) {
+    checkRange(errors, at('spawn.initialDelayMs'), spawn.initialDelayMs, { min: 0 });
+    checkRange(errors, at('spawn.intervalMs'), spawn.intervalMs, { min: MIN_SPAWN_INTERVAL_MS });
+  } else if (spawn.initialDelayMs || spawn.intervalMs) {
+    errors.push(`${at('spawn')}: an ambient spawner needs both initialDelayMs and intervalMs`);
+  }
   if (spawn.burst) {
     checkRange(errors, at('spawn.burst'), spawn.burst, { min: 1, integer: true });
     if (spawn.burst[1] > MAX_BURST) errors.push(`${at('spawn.burst')} must not exceed ${MAX_BURST}`);
@@ -87,5 +93,31 @@ export function validateSpawner(spawner: ActorSpawnerDefinition): string[] {
     errors.push(`${at('spawn.maxAlive')} must be a whole number from 1 to ${MAX_ACTORS_PER_SCENE}`);
   }
 
+  return errors;
+}
+
+/**
+ * Checks a scene's implementation of one action against the spawners it can
+ * actually use. An action that fails is left out; requesting it is then
+ * answered as unsupported.
+ */
+export function validateActionEffect(
+  actionId: string,
+  effect: SceneActionEffect,
+  spawnerIds: readonly string[],
+): string[] {
+  const errors: string[] = [];
+  if (effect.spawners.length === 0) errors.push(`${actionId}: names no spawner`);
+  for (const id of effect.spawners) {
+    if (!spawnerIds.includes(id)) errors.push(`${actionId}: unknown spawner "${id}"`);
+  }
+  if (effect.kind === 'surge') {
+    if (!Number.isFinite(effect.durationMs) || effect.durationMs <= 0 || effect.durationMs > MAX_SURGE_MS) {
+      errors.push(`${actionId}.durationMs must be positive and at most ${MAX_SURGE_MS}`);
+    }
+    checkRange(errors, `${actionId}.intervalMs`, effect.intervalMs, { min: MIN_SPAWN_INTERVAL_MS });
+  } else if (effect.kind !== 'spawn') {
+    errors.push(`${actionId}: unsupported kind "${String((effect as { kind: unknown }).kind)}"`);
+  }
   return errors;
 }

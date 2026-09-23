@@ -50,11 +50,14 @@ What exists and is verified:
   artwork and no external assets;
 * **layered scene composition**: scenes place artwork and seeded, autonomous
   actors (traffic, passers-by, blown leaves) behind or in front of you;
+* **scene actions**: an event can ask the current scene for one predefined
+  thing, such as a bus passing behind you or a gust of leaves in front,
+  selected by an allowlisted id and bounded by per-action cooldowns;
 * a versioned, typed, validated event protocol with an allowlist registry;
 * a local FastAPI event server with health, registry and event endpoints, plus
   WebSocket broadcast;
-* a control panel with scene/effect controls and a clearly-labelled simulated
-  viewer-event section;
+* a control panel with scene, effect and scene-action controls and a
+  clearly-labelled simulated viewer-event section;
 * reconnect handling: the renderer keeps rendering when the server goes away,
   and re-syncs when it comes back;
 * **camera compositing**: the renderer opens a local camera, removes your
@@ -89,7 +92,7 @@ Design rules that hold today:
 * **Local-first.** Everything binds to `127.0.0.1`; no internet is required.
 * **Resilient.** The renderer keeps its current scene when the server, the
   network or an optional integration disappears.
-* **Explicit.** Scene and effect ids resolve through an allowlist registry.
+* **Explicit.** Scene, effect and action ids resolve through an allowlist registry.
   There is no generic "execute action" event, and payloads never carry code,
   paths, URLs or prompts.
 * **Deterministic enough to test.** Protocol validation, state transitions and
@@ -242,17 +245,19 @@ Events are versioned, typed and validated on both sides:
 }
 ```
 
-Types: `scene.change`, `effect.trigger`, `effect.clear`, and the server-only
-`state.sync`. The full reference (bounds, defaults, the registry allowlist and
-the safety rules) is in [docs/protocol.md](docs/protocol.md).
+Types: `scene.change`, `effect.trigger`, `effect.clear`, the transient
+`scene.action`, and the server-only `state.sync`. The full reference (bounds,
+defaults, the registry allowlist and the safety rules) is in
+[docs/protocol.md](docs/protocol.md); scene actions, their cooldowns and
+reconnect behaviour are in [docs/scene-actions.md](docs/scene-actions.md).
 
 ### HTTP and WebSocket surface
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /healthz` | status, uptime, connected clients, current scene, active effects |
-| `GET /api/registry` | the allowlist of scenes and effects |
-| `POST /api/events` | validate → apply → broadcast; `202` on success, `422` on rejection |
+| `GET /healthz` | status, uptime, connected clients, current scene, active effects, action cooldowns |
+| `GET /api/registry` | the allowlist of scenes, effects and scene actions |
+| `POST /api/events` | validate → apply → broadcast; `202` on success, `422` on rejection, `409`/`429` for a scene action that is not the current scene's or is cooling down |
 | `WS /ws` | subscription channel; sends `state.sync` on connect, then every accepted event |
 
 ## Testing
@@ -322,13 +327,12 @@ a strict build in CI, and merges to `main` publish it to GitHub Pages.
 Everything below is future work, not current functionality.
 
 * **Platform adapters** that translate real livestream events into the existing
-  protocol, using official and compliant APIs only.
+  protocol, including the existing scene actions, using official and compliant
+  APIs only.
 * **Viewer gift and event integrations** where they are officially available.
 * **More scenes and effects**, and a richer effect-composition model.
 * **Segmentation in a Web Worker**, so inference stops competing with the
   render loop.
-* **Richer scene composition** using the compositor's layering, so scene
-  elements as well as effects can sit in front of the subject.
 * **Three.js environments** for scenes that genuinely need 3D.
 * **Optional AI-assisted scene generation** as an enhancement, never a
   dependency. The renderer must keep working with no AI provider configured.

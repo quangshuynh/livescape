@@ -48,6 +48,10 @@ job. It assigns `id` and `timestamp` so identity and ordering are decided in
 exactly one place, keeps a small in-memory record of the current scene and
 active effects, and fans each accepted envelope out to every connected client.
 
+Scene actions are transient: the server checks that the current scene owns the
+action and that it is outside its cooldown, then broadcasts it without storing
+it. See [Scene Actions](scene-actions.md).
+
 It never interprets a payload as code, a path, a URL or a prompt.
 
 ### Control panel
@@ -79,9 +83,11 @@ screen stays on screen, and the renderer reconnects with exponential backoff
 and jitter. When it reconnects, a `state.sync` envelope tells it what is
 currently live instead of snapping back to the default scene.
 
-**Explicitness.** Scene and effect ids resolve through an allowlist registry on
-both sides. There is no generic "execute action" event, and payloads never
-carry code. An event is a small, bounded, enumerated instruction.
+**Explicitness.** Scene, effect and action ids resolve through an allowlist
+registry on both sides. There is no generic "execute action" event, and
+payloads never carry code. An event is a small, bounded, enumerated
+instruction; a scene action selects a predefined capability and cannot
+describe a new one.
 
 **Optionality.** AI is an enhancement, never a dependency. Integrations are
 optional. Core rendering must keep working with none of them configured.

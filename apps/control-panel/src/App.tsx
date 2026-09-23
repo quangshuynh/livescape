@@ -1,11 +1,17 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   REGISTRY,
+  actionsForScene,
   effectClearRequest,
   effectTriggerRequest,
+  isSceneId,
+  sceneActionEntry,
+  sceneActionRequest,
   sceneChangeRequest,
+  sceneEntry,
   type EffectId,
   type EventRequest,
+  type SceneActionId,
   type SceneId,
 } from '@livescape/protocol';
 
@@ -16,6 +22,14 @@ import {
   sendEvent,
   type Health,
 } from './api.js';
+import {
+  acceptedFeedback,
+  cooldownRemaining,
+  mergeCooldowns,
+  rejectedFeedback,
+  type ActionFeedback,
+  type CooldownDeadlines,
+} from './sceneActions.js';
 import {
   SIMULATED_ACTIONS,
   simulatedActionRequest,
@@ -119,6 +133,8 @@ export function App() {
           </div>
         </Card>
 
+        <SceneActionsCard apiUrl={apiUrl} health={health} onSent={refreshHealth} />
+
         <SimulationCard pending={pending} onSend={send} />
 
         <Card title="Activity" description="Normalized events the event server broadcast.">
@@ -171,6 +187,115 @@ function Card({ title, description, children, variant = 'default' }: CardProps) 
       <p className="card__description">{description}</p>
       {children}
     </section>
+  );
+}
+
+/** How often cooldown countdowns repaint while any action is cooling down. */
+const COOLDOWN_TICK_MS = 200;
+
+interface SceneActionsCardProps {
+  readonly apiUrl: string;
+  readonly health: Health | null;
+  readonly onSent: () => void;
+}
+
+/**
+ * Manual scene actions: the operator's way to exercise exactly the request a
+ * platform adapter would send. Only the current scene's actions are offered;
+ * the event server and the renderer still check ownership and cooldowns
+ * themselves, so these buttons are a convenience, not the safeguard.
+ */
+function SceneActionsCard({ apiUrl, health, onSent }: SceneActionsCardProps) {
+  const [feedback, setFeedback] = useState<ActionFeedback | null>(null);
+  const [deadlines, setDeadlines] = useState<CooldownDeadlines>({});
+  const [now, setNow] = useState(() => Date.now());
+
+  const sceneId = health && isSceneId(health.currentScene) ? health.currentScene : null;
+  const actions = sceneId ? actionsForScene(sceneId) : [];
+  // Cooldowns this panel started, plus any the server reports (another
+  // operator, or an adapter, may have triggered the action).
+  const known = health
+    ? mergeCooldowns(deadlines, health.actionCooldowns, health.receivedAt ?? now)
+    : deadlines;
+
+  const cooling = actions.some((action) => cooldownRemaining(known, action.id, now) > 0);
+  useEffect(() => {
+    if (!cooling) return;
+    const timer = setInterval(() => setNow(Date.now()), COOLDOWN_TICK_MS);
+    return () => clearInterval(timer);
+  }, [cooling]);
+
+  const trigger = useCallback(
+    async (actionId: SceneActionId) => {
+      try {
+        const accepted = await sendEvent(apiUrl, sceneActionRequest(actionId));
+        const sentAt = Date.now();
+        setDeadlines((current) => ({ ...current, [actionId]: sentAt + sceneActionEntry(actionId).cooldownMs }));
+        setNow(sentAt);
+        setFeedback(acceptedFeedback(actionId, accepted.deliveredTo));
+        onSent();
+      } catch (caught) {
+        const failedAt = Date.now();
+        if (caught instanceof EventServerError && caught.retryAfterMs !== null) {
+          const until = failedAt + caught.retryAfterMs;
+          setDeadlines((current) => ({ ...current, [actionId]: until }));
+        }
+        setNow(failedAt);
+        setFeedback(rejectedFeedback(actionId, caught));
+        // A scene mismatch means this panel's view of the current scene is stale.
+        if (caught instanceof EventServerError && caught.status === 409) onSent();
+      }
+    },
+    [apiUrl, onSent],
+  );
+
+  return (
+    <Card
+      title="Scene actions"
+      description={
+        sceneId
+          ? `One-off actions for ${sceneEntry(sceneId).label}. Other scenes show their own.`
+          : 'Actions for the current scene appear once the event server is reachable.'
+      }
+    >
+      {sceneId && actions.length === 0 ? (
+        <p className="activity__empty">{sceneEntry(sceneId).label} has no scene actions.</p>
+      ) : null}
+      {actions.length > 0 ? (
+        <div className="button-row" role="group" aria-label="Scene actions">
+          {actions.map((action) => {
+            const remaining = cooldownRemaining(known, action.id, now);
+            return (
+              <button
+                key={action.id}
+                type="button"
+                className={`control-button${remaining > 0 ? ' control-button--cooling' : ''}`}
+                aria-label={action.label}
+                aria-describedby="scene-action-feedback"
+                title={action.description}
+                data-action={action.id}
+                onClick={() => void trigger(action.id)}
+              >
+                {action.label}
+                {remaining > 0 ? (
+                  <span className="control-button__timer" aria-hidden="true">
+                    {(remaining / 1000).toFixed(1)} s
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+      <p
+        id="scene-action-feedback"
+        className={`action-feedback${feedback ? ` action-feedback--${feedback.tone}` : ''}`}
+        role="status"
+        aria-live="polite"
+      >
+        {feedback?.text ?? ''}
+      </p>
+    </Card>
   );
 }
 

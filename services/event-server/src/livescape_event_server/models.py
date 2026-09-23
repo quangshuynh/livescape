@@ -23,6 +23,7 @@ from .registry import (
     PROTOCOL_VERSION,
     EffectId,
     EventSource,
+    SceneActionId,
     SceneId,
     default_duration_ms,
 )
@@ -84,6 +85,17 @@ class EffectClearPayload(ProtocolModel):
     effect_id: EffectId | None = None
 
 
+class SceneActionPayload(ProtocolModel):
+    """A one-shot request for a predefined scene action.
+
+    The payload is an allowlisted id and nothing else: an action selects a
+    capability the renderer already has and cannot carry parameters, code,
+    URLs, paths or prompts. It is transient and never folded into state.
+    """
+
+    action_id: SceneActionId
+
+
 class ActiveEffect(ProtocolModel):
     effect_id: EffectId
     intensity: Annotated[float, Field(ge=MIN_INTENSITY, le=MAX_INTENSITY)]
@@ -116,12 +128,24 @@ class EffectClearRequest(ProtocolModel):
     payload: EffectClearPayload = EffectClearPayload()
 
 
-EventRequest = Annotated[
-    SceneChangeRequest | EffectTriggerRequest | EffectClearRequest,
-    Field(discriminator="type"),
-]
+class SceneActionRequest(ProtocolModel):
+    version: ProtocolVersion
+    type: Literal["scene.action"]
+    source: EventSource = "manual"
+    payload: SceneActionPayload
 
-EventPayload = SceneChangePayload | EffectTriggerPayload | EffectClearPayload | StateSyncPayload
+
+ClientRequest = SceneChangeRequest | EffectTriggerRequest | EffectClearRequest | SceneActionRequest
+
+EventRequest = Annotated[ClientRequest, Field(discriminator="type")]
+
+EventPayload = (
+    SceneChangePayload
+    | EffectTriggerPayload
+    | EffectClearPayload
+    | SceneActionPayload
+    | StateSyncPayload
+)
 
 
 class EventEnvelope(ProtocolModel):
@@ -129,7 +153,7 @@ class EventEnvelope(ProtocolModel):
 
     version: ProtocolVersion = PROTOCOL_VERSION
     id: str
-    type: Literal["scene.change", "effect.trigger", "effect.clear", "state.sync"]
+    type: Literal["scene.change", "effect.trigger", "effect.clear", "scene.action", "state.sync"]
     source: EventSource
     timestamp: str
     payload: EventPayload
@@ -143,9 +167,7 @@ def utc_now_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
-def envelope_from_request(
-    request: SceneChangeRequest | EffectTriggerRequest | EffectClearRequest,
-) -> EventEnvelope:
+def envelope_from_request(request: ClientRequest) -> EventEnvelope:
     """Stamp a validated client request with server-owned identity and time."""
     return EventEnvelope(
         version=PROTOCOL_VERSION,

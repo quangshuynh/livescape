@@ -218,6 +218,38 @@ body {
   cursor: not-allowed;
 }
 
+/* A scene action still inside its cooldown. It stays clickable, so the event
+   server's own throttling can be exercised; it just reads as not ready. */
+.control-button--cooling {
+  border-style: dashed;
+  color: var(--text-muted);
+}
+
+.control-button__timer {
+  margin-left: 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.action-feedback {
+  min-height: 1.5em;
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.action-feedback--ok {
+  color: var(--online);
+}
+
+.action-feedback--wait {
+  color: var(--warning);
+}
+
+.action-feedback--error {
+  color: #ffc9c9;
+}
+
 .form-grid {
   display: grid;
   gap: 12px;

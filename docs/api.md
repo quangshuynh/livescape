@@ -10,7 +10,7 @@ is running.
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
 | `/healthz` | GET | Liveness and a snapshot of current state |
-| `/api/registry` | GET | The allowlist of scenes and effects |
+| `/api/registry` | GET | The allowlist of scenes, effects and scene actions |
 | `/api/events` | POST | Validate, apply and broadcast an event |
 | `/ws` | WebSocket | Read-only subscription channel |
 
@@ -25,15 +25,21 @@ Used by the control panel's connection indicator.
   "protocolVersion": 1,
   "uptimeSeconds": 42.317,
   "connectedClients": 2,
-  "currentScene": "forest",
-  "activeEffects": ["rain"]
+  "currentScene": "roadside-workshop",
+  "activeEffects": ["rain"],
+  "actionCooldowns": { "roadside.send-bus": 5200 }
 }
 ```
+
+`actionCooldowns` lists the scene actions still inside their cooldown, with the
+milliseconds left. The control panel uses it to show cooldowns that another
+source started.
 
 ## `GET /api/registry`
 
 Returns the allowlist this deployment can render: scenes, effects with their
-default durations, and the valid event sources. The control panel builds its UI
+default durations, scene actions with their owning scene, label and cooldown,
+and the valid event sources. The control panel builds its UI
 from this response rather than hard-coding a list.
 
 See [Scenes and Effects](scenes-and-effects.md) for the current contents.
@@ -69,9 +75,31 @@ curl -X POST http://127.0.0.1:8765/api/events \
 Zero is normal when no renderer is open; it is not an error.
 
 `422 Unprocessable Entity` on rejection, with FastAPI's validation detail. An
-unknown scene or effect id, an out-of-range value, an unknown field, a wrong
-protocol version, or an attempt to send the server-only `state.sync` are all
-rejected here, before anything reaches a renderer.
+unknown scene, effect or action id, an out-of-range value, an unknown field, a
+wrong protocol version, or an attempt to send the server-only `state.sync` are
+all rejected here, before anything reaches a renderer.
+
+A valid `scene.action` can still be refused, also without a broadcast:
+
+`409 Conflict` when the current scene does not own the action:
+
+```json
+{
+  "detail": "roadside.send-bus belongs to roadside-workshop, but the current scene is space",
+  "sceneId": "roadside-workshop"
+}
+```
+
+`429 Too Many Requests` while the action is inside its cooldown, with a
+`Retry-After` header in whole seconds:
+
+```json
+{ "detail": "roadside.send-bus is cooling down", "retryAfterMs": 5200 }
+```
+
+A refused action does not start or extend a cooldown. An accepted one is
+broadcast but not stored, so it is not part of `state.sync`. See
+[Scene Actions](scene-actions.md#cooldowns-and-bursts).
 
 ## `WS /ws`
 
@@ -79,7 +107,8 @@ Renderer and control-panel subscription channel.
 
 On connect, the server immediately sends a `state.sync` envelope describing the
 current scene and the effects that still have time left on them. After that it
-sends every accepted event, in the order it accepted them.
+sends every accepted event, in the order it accepted them. Scene actions
+broadcast before the client connected are not sent: they are transient.
 
 The socket is **read-only from the client's perspective**. Inbound frames are
 drained so that disconnects are noticed promptly, but they are never

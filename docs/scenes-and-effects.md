@@ -66,7 +66,7 @@ An actor spawner is a small typed record, not code:
 | `layer` | `backdrop`, `environment` or `foreground` |
 | `behavior` | `traverse` (cross the scene left, right or either way, on a baseline, at a speed) or `path` (a straight line from a start region over a duration) |
 | `scale`, `opacity`, `tints` | Ranges and colour choices, picked per actor |
-| `spawn` | Initial delay, interval, optional burst size, and a per-spawner cap |
+| `spawn` | Initial delay and interval (both omitted for an on-demand spawner), optional burst size, and a per-spawner cap |
 | `lane` | Optional. Spawners sharing a lane never overlap on screen |
 
 There are exactly two behaviours, and a scene cannot supply its own. Every
@@ -88,10 +88,11 @@ Bounds hold whatever a definition asks for:
 * a definition that fails validation has the offending spawner dropped, with a
   console warning, rather than breaking the renderer.
 
-The engine exposes an internal `trigger(spawnerId)` that spawns one actor within
-the same caps. The setup panel uses it for development. It is also the hook a
-future event-driven action ("send a bus past") would use, but no event reaches
-it today and the protocol is unchanged.
+A spawner with no initial delay or interval has no ambient schedule: it only
+spawns when a [scene action](scene-actions.md) asks for it. Actions spawn
+through the same engine, within the same caps, and add no timers of their own.
+The engine also exposes `trigger(spawnerId)`, which the setup panel uses to
+spawn one actor locally for development.
 
 ### Scene changes
 
@@ -99,8 +100,9 @@ A `scene.change` event carries a `transitionMs` hint, `0` to `10000`, with a
 default of `900`. The renderer crossfades every plane of the outgoing scene
 into the incoming one over that duration.
 
-When a scene starts to fade out it stops spawning, its actors on screen keep
-moving, and when the crossfade ends the scene is removed along with every actor
+When a scene starts to fade out it stops spawning and takes no more scene
+actions, any action still waiting or surging is cancelled, its actors on screen
+keep moving, and when the crossfade ends the scene is removed along with every actor
 it owned. At most two scenes exist at once, even when changes arrive faster
 than the transition. Changing to the scene that is already showing does
 nothing.
@@ -146,6 +148,11 @@ door frame and behind the subject. The cat crosses behind the subject and
 behind the foreground toolbox; the leaves cross in front of everything but the
 weather. Ambient motion is sparse on purpose: a car every few seconds, a bus
 every minute or two, a gust of leaves every half minute.
+
+Roadside Workshop has five [scene actions](scene-actions.md#actions): Send Car,
+Send Bus, Pedestrians and Rush Hour on the street behind the subject, and Blow
+Leaves in front of it. Forest and Space have one each, a bird flock and a
+shooting star, using on-demand spawners; neither has ambient actors.
 
 ## Effects
 
@@ -199,7 +206,9 @@ When the browser reports `prefers-reduced-motion`:
   ambient motion resumes when it turns off;
 * particle effects keep running at roughly a third of their normal budget and
   a slower speed, because they were asked for by an event;
-* an actor spawned on demand still appears, at half speed;
+* an actor spawned on demand still appears, at half speed; a scene action runs
+  at half speed with at most two actors, and Rush Hour is refused (see
+  [Scene Actions](scene-actions.md#reduced-motion));
 * scene crossfades are cut to a single frame.
 
 ## Assets

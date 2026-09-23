@@ -4,6 +4,7 @@ import type {
   EffectTriggerRequest,
   EventType,
   LiveScapeEvent,
+  SceneActionRequest,
   SceneChangeRequest,
 } from './events.js';
 import { EVENT_TYPES } from './events.js';
@@ -12,9 +13,10 @@ import {
   effectEntry,
   isEffectId,
   isEventSource,
+  isSceneActionId,
   isSceneId,
 } from './registry.js';
-import type { EffectId, EventSource, SceneId } from './registry.js';
+import type { EffectId, EventSource, SceneActionId, SceneId } from './registry.js';
 
 /**
  * Bounds shared with the Python event server (`models.py`). Both sides
@@ -89,6 +91,12 @@ function parsePayload(type: EventType, raw: unknown): ParseResult<LiveScapeEvent
       const effectId = raw.effectId ?? null;
       if (effectId !== null && !isEffectId(effectId)) return fail(`unknown effect id: ${String(effectId)}`);
       return { ok: true, value: { effectId: effectId as EffectId | null } };
+    }
+    case 'scene.action': {
+      // Only an allowlisted id is accepted. Anything else in the payload is
+      // dropped rather than passed on: an action carries no parameters.
+      if (!isSceneActionId(raw.actionId)) return fail(`unknown scene action id: ${String(raw.actionId)}`);
+      return { ok: true, value: { actionId: raw.actionId } };
     }
     case 'state.sync': {
       if (!isSceneId(raw.sceneId)) return fail(`unknown scene id: ${String(raw.sceneId)}`);
@@ -185,5 +193,17 @@ export function effectClearRequest(
     type: 'effect.clear',
     source: options.source ?? 'manual',
     payload: { effectId },
+  };
+}
+
+export function sceneActionRequest(
+  actionId: SceneActionId,
+  options: { source?: EventSource } = {},
+): SceneActionRequest {
+  return {
+    version: PROTOCOL_VERSION,
+    type: 'scene.action',
+    source: options.source ?? 'manual',
+    payload: { actionId },
   };
 }

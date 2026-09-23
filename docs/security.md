@@ -18,10 +18,19 @@ loopback-only.
 
 ## Events cannot execute anything
 
-* Scene and effect ids resolve through an explicit allowlist registry on both
-  the Python and the TypeScript side. The renderer looks scenes up in a fixed
-  component map and effects up in a fixed factory, so an unknown id cannot
-  reach anything that draws.
+* Scene, effect and action ids resolve through an explicit allowlist registry
+  on both the Python and the TypeScript side. The renderer looks scenes up in a
+  fixed component map, effects up in a fixed factory and actions up in the
+  owning scene's definition, so an unknown id cannot reach anything that draws.
+* A scene action is only an id. It cannot carry JavaScript, URLs, file or asset
+  paths, CSS, selectors, HTML, shell commands, prompts or actor definitions,
+  and the event server refuses any extra field. An external source can select
+  one of the renderer's existing capabilities, never add one.
+* Actions are rate-bounded: each has a registry cooldown enforced by the event
+  server and again by the renderer, and everything an action spawns stays
+  inside the scene's actor caps. A burst of requests costs at most one
+  broadcast per action per cooldown. See
+  [Scene Actions](scene-actions.md#cooldowns-and-bursts).
 * Payloads never carry code, shell commands, file paths, URLs or prompts, and
   there is no generic "execute action" event.
 * Unknown fields are rejected outright (`extra: "forbid"`).
@@ -73,7 +82,8 @@ original to the repository and inline: there is no third-party artwork, no
 image or font file, and no external asset fetch at runtime, so nothing
 unexpected can appear on a live stream. Scene definitions are typed data: a
 scene cannot run code per actor, and events cannot reach scene definitions at
-all.
+all; a scene action can only select an action the definition already
+implements.
 
 ## Platform integrations
 

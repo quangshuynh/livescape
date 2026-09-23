@@ -37,10 +37,10 @@ result to GitHub Pages. See [Documentation Site](documentation-site.md).
 
 | Suite | Tests | Focus |
 | --- | --- | --- |
-| `services/event-server/tests` | 51 | Protocol validation, state folding and expiry, broadcast and client dropping, WebSocket handshake and `state.sync`, health, registry drift |
-| `packages/protocol` | 23 | Envelope parsing, bounds, defaults, request builders |
-| `apps/renderer` | 355 | Reducer transitions, reconnect backoff, effect particle budgets, camera lifecycle, segmentation scheduling, frame/mask synchronisation, temporal filtering and edge refinement, compositing, scene composition and actors, and rendering |
-| `apps/control-panel` | 20 | Request building, rejection handling, simulated-action mapping, UI behaviour |
+| `services/event-server/tests` | 78 | Protocol validation, state folding and expiry, broadcast and client dropping, WebSocket handshake and `state.sync`, health, registry drift, scene action ownership, cooldowns, bursts and non-replay |
+| `packages/protocol` | 45 | Envelope parsing, bounds, defaults, request builders, the action registry and `scene.action` validation |
+| `apps/renderer` | 402 | Reducer transitions, reconnect backoff, effect particle budgets, camera lifecycle, segmentation scheduling, frame/mask synchronisation, temporal filtering and edge refinement, compositing, scene composition and actors, scene actions (routing, planes, cooldowns, bursts, cleanup, reduced motion, reconnect), and rendering |
+| `apps/control-panel` | 31 | Request building, rejection handling, simulated-action mapping, scene action controls and feedback, UI behaviour |
 
 Python tests use pytest with `filterwarnings = ["error"]`, so a new warning
 from our own code fails the suite.

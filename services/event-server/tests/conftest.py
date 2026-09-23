@@ -52,3 +52,25 @@ def effect_clear(effect_id: str | None = None) -> dict[str, object]:
         "source": "manual",
         "payload": {"effectId": effect_id},
     }
+
+
+def scene_action(action_id: str = "roadside.send-bus", **extra: object) -> dict[str, object]:
+    return {
+        "version": 1,
+        "type": "scene.action",
+        "source": "manual",
+        "payload": {"actionId": action_id, **extra},
+    }
+
+
+class ManualClock:
+    """Monotonic seconds the test moves by hand, for action cooldowns."""
+
+    def __init__(self, start: float = 1000.0) -> None:
+        self.now = start
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds

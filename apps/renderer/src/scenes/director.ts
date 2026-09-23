@@ -1,6 +1,7 @@
-import type { SceneId } from '@livescape/protocol';
+import { sceneActionEntry, type SceneActionId, type SceneId } from '@livescape/protocol';
 
 import { browserClock, NO_ACTORS, type ActorCounts, type ActorEngine, type EngineClock } from '../actors/engine.js';
+import type { ActionOutcome } from '../actors/population.js';
 import { SCENE_LAYERS } from '../actors/types.js';
 import { createSceneEngine, type SceneDefinition } from './definition.js';
 import { mulberry32 } from './random.js';
@@ -14,6 +15,16 @@ export interface SceneInstance {
   /** `in` is the scene being shown; `out` is fading away underneath it. */
   readonly role: 'in' | 'out';
   readonly transitionMs: number;
+}
+
+/** `wrong-scene`: the action belongs to a scene that is not the one showing. */
+export type SceneActionResult = ActionOutcome | 'wrong-scene';
+
+/** The most recent action request, for local diagnostics. */
+export interface SceneActionRecord {
+  readonly actionId: SceneActionId;
+  readonly result: SceneActionResult;
+  readonly at: number;
 }
 
 export interface SceneDirectorOptions {
@@ -50,6 +61,7 @@ export class SceneDirector {
   private readonly activityListeners = new Set<() => void>();
   private readonly engineSubscriptions = new Map<ActorEngine, () => void>();
   private countsCache: ActorCounts | null = null;
+  private last: SceneActionRecord | null = null;
 
   constructor(options: SceneDirectorOptions) {
     this.options = options;
@@ -79,15 +91,40 @@ export class SceneDirector {
   getActorCounts = (): ActorCounts => {
     if (this.countsCache) return this.countsCache;
     let total = 0;
+    let triggered = 0;
     const byLayer = { ...NO_ACTORS.byLayer };
     for (const instance of this.instances) {
       const counts = instance.engine.counts();
       total += counts.total;
+      triggered += counts.triggered;
       for (const layer of SCENE_LAYERS) byLayer[layer] += counts.byLayer[layer];
     }
-    this.countsCache = { total, byLayer };
-    return this.countsCache;
+    const counts: ActorCounts = { total, byLayer, triggered };
+    this.countsCache = counts;
+    return counts;
   };
+
+  /** The most recent action request and what became of it. Diagnostics only. */
+  get lastAction(): SceneActionRecord | null {
+    return this.last;
+  }
+
+  /**
+   * Routes a scene action to the scene showing now. An action only ever
+   * reaches the scene the registry says owns it; anything else is refused
+   * here, whatever the event server decided, and never touches another
+   * scene's actors. A scene that is fading out never receives actions.
+   */
+  act(actionId: SceneActionId): SceneActionResult {
+    const current = this.current;
+    let result: SceneActionResult;
+    if (sceneActionEntry(actionId).sceneId !== current.sceneId) result = 'wrong-scene';
+    else if (!this.running) result = 'inactive';
+    else result = current.engine.act(actionId);
+    this.last = { actionId, result, at: this.clock.now() };
+    this.onActivity();
+    return result;
+  }
 
   get current(): SceneInstance {
     return this.instances[this.instances.length - 1] as SceneInstance;

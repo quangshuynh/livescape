@@ -49,6 +49,7 @@ describe('ActorEngine', () => {
     expect(actors.counts()).toEqual({
       total: 1,
       byLayer: { backdrop: 1, environment: 0, foreground: 0 },
+      triggered: 0,
     });
   });
 

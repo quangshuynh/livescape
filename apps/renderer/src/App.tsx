@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { LiveScapeEvent } from '@livescape/protocol';
 
 import type { EngineClock } from './actors/engine.js';
@@ -12,7 +12,12 @@ import { debugOverlayEnabled, resolveWsUrl, setupPanelEnabled } from './config.j
 import { EffectsLayer } from './effects/EffectsLayer.js';
 import { useFrameRate, useReducedMotion } from './hooks.js';
 import { initialRendererState, rendererReducer } from './rendererState.js';
-import { describeActorCounts, useActorCounts } from './scenes/diagnostics.js';
+import {
+  describeActorCounts,
+  describeSceneAction,
+  useActorCounts,
+  useSceneActionDiagnostics,
+} from './scenes/diagnostics.js';
 import type { SceneDirector } from './scenes/director.js';
 import { ScenePlane } from './scenes/ScenePlane.js';
 import { useSceneDirector } from './scenes/useSceneDirector.js';
@@ -43,7 +48,31 @@ export function App({ mediaDevices, createSegmenter, sceneClock }: AppProps = {}
   // camera state, and only reaches the compositor while the panel is mounted.
   const [view, setView] = useState<CompositorView>('composite');
 
+  // Scene actions bypass the reducer: they are one-shot and go straight to the
+  // scene director. `sceneTarget` tracks the scene the event stream has asked
+  // for, which can be a render ahead of what the director is showing.
+  const directorRef = useRef<SceneDirector | null>(null);
+  const sceneTarget = useRef({
+    sceneId: initialRendererState.sceneId,
+    transitionMs: initialRendererState.transitionMs,
+  });
+
   const onEvent = useCallback((event: LiveScapeEvent) => {
+    if (event.type === 'scene.action') {
+      const director = directorRef.current;
+      if (!director) return;
+      // A scene change that arrived just before this action may not have been
+      // rendered yet. Show it first, so the action reaches the scene the event
+      // server checked it against rather than being refused by the old one.
+      director.show(sceneTarget.current.sceneId, sceneTarget.current.transitionMs);
+      director.act(event.payload.actionId);
+      return;
+    }
+    if (event.type === 'scene.change') {
+      sceneTarget.current = { sceneId: event.payload.sceneId, transitionMs: event.payload.transitionMs };
+    } else if (event.type === 'state.sync') {
+      sceneTarget.current = { ...sceneTarget.current, sceneId: event.payload.sceneId };
+    }
     dispatch({ type: 'event', event, now: Date.now() });
   }, []);
 
@@ -62,6 +91,12 @@ export function App({ mediaDevices, createSegmenter, sceneClock }: AppProps = {}
     reducedMotion,
     { clock: sceneClock },
   );
+  useEffect(() => {
+    directorRef.current = director;
+    return () => {
+      directorRef.current = null;
+    };
+  }, [director]);
 
   // Diagnostics are only collected while something is there to display them.
   const showStats = showDebug || showSetup;
@@ -155,6 +190,7 @@ function DebugOverlay({
 }: DebugOverlayProps) {
   const segmentation = stats.segmentation;
   const actors = useActorCounts(director);
+  const actions = useSceneActionDiagnostics(director);
   return (
     <aside className="debug-overlay" style={{ zIndex: stageZIndex('debug') }}>
       <p className="debug-overlay__row">
@@ -163,6 +199,10 @@ function DebugOverlay({
       </p>
       <p className="debug-overlay__row">scene: {sceneId}</p>
       <p className="debug-overlay__row">actors: {describeActorCounts(actors)}</p>
+      <p className="debug-overlay__row">
+        action: {describeSceneAction(actions.last)}
+        {actions.active.length > 0 ? `, running ${actions.active.join(', ')}` : ''}
+      </p>
       <p className="debug-overlay__row">page: {frameRate.toFixed(0)} FPS</p>
       <p className="debug-overlay__row">effects: {effects.length > 0 ? effects.join(', ') : 'none'}</p>
       <p className="debug-overlay__row">camera: {camera}</p>

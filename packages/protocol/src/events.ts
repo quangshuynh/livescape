@@ -1,4 +1,4 @@
-import type { EffectId, EventSource, SceneId } from './registry.js';
+import type { EffectId, EventSource, SceneActionId, SceneId } from './registry.js';
 
 /**
  * The LiveScape event protocol.
@@ -9,7 +9,7 @@ import type { EffectId, EventSource, SceneId } from './registry.js';
  * knowledge of any upstream platform.
  */
 
-export const CLIENT_EVENT_TYPES = ['scene.change', 'effect.trigger', 'effect.clear'] as const;
+export const CLIENT_EVENT_TYPES = ['scene.change', 'effect.trigger', 'effect.clear', 'scene.action'] as const;
 export const SERVER_ONLY_EVENT_TYPES = ['state.sync'] as const;
 export const EVENT_TYPES = [...CLIENT_EVENT_TYPES, ...SERVER_ONLY_EVENT_TYPES] as const;
 
@@ -33,6 +33,17 @@ export interface EffectTriggerPayload {
 export interface EffectClearPayload {
   /** `null` clears every active effect. */
   readonly effectId: EffectId | null;
+}
+
+/**
+ * A one-shot request for a predefined scene action.
+ *
+ * Unlike the other client events this is transient: the server does not fold
+ * it into state, so it is never replayed by `state.sync`. A renderer that is
+ * not connected when it is broadcast simply never sees it.
+ */
+export interface SceneActionPayload {
+  readonly actionId: SceneActionId;
 }
 
 export interface ActiveEffect {
@@ -60,11 +71,13 @@ export type SceneChangeEvent = EventEnvelopeBase<'scene.change', SceneChangePayl
 export type EffectTriggerEvent = EventEnvelopeBase<'effect.trigger', EffectTriggerPayload>;
 export type EffectClearEvent = EventEnvelopeBase<'effect.clear', EffectClearPayload>;
 export type StateSyncEvent = EventEnvelopeBase<'state.sync', StateSyncPayload>;
+export type SceneActionEvent = EventEnvelopeBase<'scene.action', SceneActionPayload>;
 
 export type LiveScapeEvent =
   | SceneChangeEvent
   | EffectTriggerEvent
   | EffectClearEvent
+  | SceneActionEvent
   | StateSyncEvent;
 
 /**
@@ -82,4 +95,10 @@ export type SceneChangeRequest = EventRequestBase<'scene.change', SceneChangePay
 export type EffectTriggerRequest = EventRequestBase<'effect.trigger', EffectTriggerPayload>;
 export type EffectClearRequest = EventRequestBase<'effect.clear', EffectClearPayload>;
 
-export type EventRequest = SceneChangeRequest | EffectTriggerRequest | EffectClearRequest;
+export type SceneActionRequest = EventRequestBase<'scene.action', SceneActionPayload>;
+
+export type EventRequest =
+  | SceneChangeRequest
+  | EffectTriggerRequest
+  | EffectClearRequest
+  | SceneActionRequest;

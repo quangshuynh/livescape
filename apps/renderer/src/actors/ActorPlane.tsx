@@ -52,6 +52,7 @@ const ActorView = memo(function ActorView({ actor, now }: ActorViewProps) {
       data-spawner={actor.spawnerId}
       data-layer={actor.layer}
       data-facing={actor.facing}
+      data-triggered={actor.triggered ? 'true' : undefined}
       style={style}
     >
       <div className={actor.facing === 'left' ? 'actor__body actor__body--flipped' : 'actor__body'}>
