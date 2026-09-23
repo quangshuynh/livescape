@@ -1,0 +1,48 @@
+# Demonstration mappings for the simulated platform.
+#
+# Each entry says "this normalized platform event selects that allowlisted
+# scene action" and nothing else. Keys: platform, kind (gift | follow), gift
+# (gift mappings only), action (a scene action id from the protocol registry)
+# and optional min_quantity (gift mappings only). Anything else is rejected.
+#
+# A mapping chooses an action; it does not guarantee one. The event server
+# still refuses an action that the current scene does not own or that is
+# cooling down, and bursts are coalesced. See docs/platform-adapters.md.
+
+version = 1
+
+[[mapping]]
+platform = "simulation"
+kind = "gift"
+gift = "demo.car"
+action = "roadside.send-car"
+
+[[mapping]]
+platform = "simulation"
+kind = "gift"
+gift = "demo.bus"
+action = "roadside.send-bus"
+
+[[mapping]]
+platform = "simulation"
+kind = "gift"
+gift = "demo.leaves"
+action = "roadside.blow-leaves"
+
+[[mapping]]
+platform = "simulation"
+kind = "gift"
+gift = "demo.rush"
+action = "roadside.rush-hour"
+min_quantity = 5
+
+[[mapping]]
+platform = "simulation"
+kind = "gift"
+gift = "demo.birds"
+action = "forest.bird-flock"
+
+[[mapping]]
+platform = "simulation"
+kind = "follow"
+action = "roadside.pedestrians"
