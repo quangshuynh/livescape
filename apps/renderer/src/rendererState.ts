@@ -116,6 +116,12 @@ export function rendererReducer(state: RendererState, action: RendererAction): R
       };
     }
 
+    case 'scene.action':
+      // Transient: an action is performed by the scene director, once, and is
+      // never part of renderer state. Leaving state untouched also means a
+      // reconnect has nothing to replay.
+      return state;
+
     default:
       return state;
   }

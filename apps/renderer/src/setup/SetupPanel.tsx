@@ -5,7 +5,12 @@ import type { CameraMode, CameraState } from '../camera/types.js';
 import { stageZIndex } from '../compositor/layers.js';
 import type { CompositorView } from '../compositor/draw.js';
 import type { CompositorStats } from '../compositor/stats.js';
-import { describeActorCounts, useActorCounts } from '../scenes/diagnostics.js';
+import {
+  describeActorCounts,
+  describeSceneAction,
+  useActorCounts,
+  useSceneActionDiagnostics,
+} from '../scenes/diagnostics.js';
 import type { SceneDirector } from '../scenes/director.js';
 import { QUALITY_ORDER, QUALITY_PRESETS } from '../segmentation/quality.js';
 
@@ -110,6 +115,7 @@ export function SetupPanel({
 }: SetupPanelProps) {
   const { state, refreshDevices } = camera;
   const actors = useActorCounts(director);
+  const actions = useSceneActionDiagnostics(director);
   const { engine } = director.current;
   const deviceSelectId = useId();
   const qualityId = useId();
@@ -416,6 +422,10 @@ export function SetupPanel({
           <dd>{sceneId}</dd>
           <dt>Actors</dt>
           <dd>{describeActorCounts(actors)}</dd>
+          <dt>Last action</dt>
+          <dd>{describeSceneAction(actions.last)}</dd>
+          <dt>Running actions</dt>
+          <dd>{actions.active.length > 0 ? actions.active.join(', ') : 'none'}</dd>
           <dt>Effects</dt>
           <dd>{effects.length > 0 ? effects.join(', ') : 'none'}</dd>
         </dl>

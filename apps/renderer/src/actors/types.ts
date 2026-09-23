@@ -55,10 +55,14 @@ export interface PathBehavior {
 export type ActorBehavior = TraverseBehavior | PathBehavior;
 
 export interface SpawnRule {
-  /** Delay before the first spawn once the scene is showing. */
-  readonly initialDelayMs: Range;
+  /**
+   * Delay before the first spawn once the scene is showing. A spawner with
+   * neither this nor `intervalMs` never spawns on its own: only a scene
+   * action (or the setup panel) can spawn it.
+   */
+  readonly initialDelayMs?: Range;
   /** Delay between spawns. */
-  readonly intervalMs: Range;
+  readonly intervalMs?: Range;
   /** How many actors one spawn produces; a gust of leaves, a flock. */
   readonly burst?: Range;
   /** This spawner never has more than this many actors alive. */
@@ -85,6 +89,31 @@ export interface ActorSpawnerDefinition {
   readonly lane?: string;
   readonly spawn: SpawnRule;
 }
+
+/** Spawns once from the first listed spawner that has room. */
+export interface SpawnActionEffect {
+  readonly kind: 'spawn';
+  /** Tried in order, so an action can fall back to a second lane. */
+  readonly spawners: readonly string[];
+}
+
+/**
+ * Temporarily spawns from the listed spawners on a faster schedule, then
+ * stops by itself. Ambient spawning carries on unchanged underneath.
+ */
+export interface SurgeActionEffect {
+  readonly kind: 'surge';
+  readonly spawners: readonly string[];
+  readonly durationMs: number;
+  readonly intervalMs: Range;
+}
+
+/**
+ * What a scene does when one of its registry actions is requested. Like
+ * spawners, this is data: it names spawners the scene already declares and
+ * cannot describe new behaviour.
+ */
+export type SceneActionEffect = SpawnActionEffect | SurgeActionEffect;
 
 export interface Point {
   readonly x: number;
@@ -115,4 +144,6 @@ export interface ActorInstance {
   readonly depth: number;
   readonly opacity: number;
   readonly tint: string | null;
+  /** Spawned on request (a scene action or the setup panel), not by the ambient schedule. */
+  readonly triggered: boolean;
 }

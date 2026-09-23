@@ -1,4 +1,4 @@
-import { SCENE_IDS } from '@livescape/protocol';
+import { REGISTRY, SCENE_IDS } from '@livescape/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ActorSpawnerDefinition } from '../actors/types.js';
@@ -115,6 +115,68 @@ describe('validateSceneDefinition', () => {
     expect(errors).toContain('duplicate spawner id "car"');
     expect(errors).toContain('"red" is not #rrggbb');
     expect(errors).toContain('maxActors must be a whole number');
+  });
+});
+
+describe('scene actions in definitions', () => {
+  it('implements every registry action in its owning scene, and no others', () => {
+    for (const action of REGISTRY.actions) {
+      expect(SCENES[action.sceneId].actions?.[action.id], action.id).toBeDefined();
+    }
+    const implemented = SCENE_IDS.flatMap((id) => Object.keys(SCENES[id].actions ?? {}));
+    expect(implemented.sort()).toEqual(REGISTRY.actions.map((action) => action.id).sort());
+  });
+
+  it('keeps Roadside street actions behind the subject and the gust in front', () => {
+    const roadside = SCENES['roadside-workshop'];
+    const layerOf = (id: string) => roadside.actors.find((spawner) => spawner.id === id)?.layer;
+    const spawnersOf = (actionId: keyof NonNullable<SceneDefinition['actions']>) =>
+      roadside.actions?.[actionId]?.spawners ?? [];
+
+    for (const actionId of ['roadside.send-car', 'roadside.send-bus', 'roadside.pedestrians', 'roadside.rush-hour'] as const) {
+      for (const id of spawnersOf(actionId)) expect(layerOf(id), `${actionId} ${id}`).toBe('backdrop');
+    }
+    expect(spawnersOf('roadside.blow-leaves').map(layerOf)).toEqual(['foreground']);
+  });
+
+  it('rejects an action the scene does not own, one it leaves out, and one naming an unknown spawner', () => {
+    const errors = validateSceneDefinition({
+      ...SCENES.space,
+      actions: {
+        'roadside.send-bus': { kind: 'spawn', spawners: ['meteor'] },
+      },
+    }).join('\n');
+    expect(errors).toContain('"roadside.send-bus" is not one of this scene\'s registry actions');
+    expect(errors).toContain('registry action "space.shooting-star" is not implemented');
+
+    const unknown = validateSceneDefinition({
+      ...SCENES.space,
+      actions: { 'space.shooting-star': { kind: 'spawn', spawners: ['comet'] } },
+    }).join('\n');
+    expect(unknown).toContain('unknown spawner "comet"');
+  });
+
+  it('leaves out an action whose spawner was dropped, instead of running it', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const broken = {
+      ...SCENES.space,
+      actors: SCENES.space.actors.map((spawner) => ({ ...spawner, sprites: ['ufo'] })),
+    } as unknown as SceneDefinition;
+
+    const engine = createSceneEngine(broken, { reducedMotion: false });
+    engine.start();
+
+    expect(engine.actionIds).toEqual([]);
+    expect(engine.act('space.shooting-star')).toBe('unsupported');
+    warn.mockRestore();
+  });
+
+  it('takes each action\'s cooldown from the registry', () => {
+    const engine = createSceneEngine(SCENES.space, { reducedMotion: false });
+    engine.start();
+    expect(engine.actionIds).toEqual(['space.shooting-star']);
+    expect(engine.act('space.shooting-star')).toBe('started');
+    expect(engine.act('space.shooting-star')).toBe('cooldown');
   });
 });
 

@@ -5,19 +5,70 @@ import {
   type ActorSpawnerDefinition,
   type Point,
   type Range,
+  type SceneActionEffect,
+  type SurgeActionEffect,
 } from './types.js';
 import { MAX_ACTORS_PER_SCENE } from './validate.js';
 
 /** Actors spawned on demand under reduced motion move at this fraction of speed. */
 export const REDUCED_MOTION_SPEED = 0.5;
+/** Under reduced motion an action spawns at most this many actors at once. */
+export const REDUCED_MOTION_ACTION_BURST = 2;
 /** How long a spawner waits before retrying when its lane is occupied. */
 export const LANE_RETRY_MS: Range = [800, 2400];
+/**
+ * How long a spawn action with no room yet (its lane is occupied, or its
+ * spawner is at `maxAlive`) waits for room before it is dropped. At most one
+ * request per action waits; later ones merge into it.
+ */
+export const ACTION_PENDING_MS = 5000;
+/**
+ * The event server enforces each action's cooldown exactly. The renderer
+ * enforces it again as a safety net, minus this allowance for delivery
+ * jitter, so two requests the server accepted a cooldown apart are never
+ * dropped because the second one happened to arrive a little sooner.
+ */
+export const COOLDOWN_TOLERANCE_MS = 250;
+
+/** A registry action as one scene implements it. */
+export interface PopulationAction {
+  readonly id: string;
+  readonly cooldownMs: number;
+  readonly effect: SceneActionEffect;
+}
+
+/**
+ * What happened to an action request.
+ *
+ * * `started`: actors spawned, or a surge began, immediately.
+ * * `queued`: no room yet; it waits up to `ACTION_PENDING_MS` for room.
+ * * `coalesced`: the same action is already waiting or surging; merged into it.
+ * * `cooldown`: requested again inside its cooldown; dropped.
+ * * `reduced-motion`: a sustained action, refused under reduced motion.
+ * * `inactive`: the scene is not running (fading out, or stopped).
+ * * `unsupported`: this scene does not implement the action.
+ */
+export type ActionOutcome =
+  | 'started'
+  | 'queued'
+  | 'coalesced'
+  | 'cooldown'
+  | 'reduced-motion'
+  | 'inactive'
+  | 'unsupported';
+
+interface Surge {
+  readonly effect: SurgeActionEffect;
+  readonly endsAt: number;
+  readonly schedule: Map<string, number>;
+}
 
 export interface PopulationOptions {
   readonly random: () => number;
   /** Clamped to `MAX_ACTORS_PER_SCENE`. */
   readonly maxActors: number;
   readonly reducedMotion: boolean;
+  readonly actions?: readonly PopulationAction[];
 }
 
 function between(random: () => number, [min, max]: Range): number {
@@ -67,6 +118,7 @@ export function createActor(
   now: number,
   random: () => number,
   speedScale = 1,
+  triggered = false,
 ): ActorInstance {
   const sprite = pick(random, spawner.sprites);
   const size = SPRITE_SIZES[sprite];
@@ -86,6 +138,7 @@ export function createActor(
     height,
     opacity,
     tint,
+    triggered,
   };
 
   const { behavior } = spawner;
@@ -137,6 +190,11 @@ export class ActorPopulation {
   private phase: Phase = 'idle';
   private list: ActorInstance[] = [];
   private readonly schedule = new Map<string, number>();
+  private readonly actions = new Map<string, PopulationAction>();
+  private readonly lastAccepted = new Map<string, number>();
+  /** Spawn actions waiting for room, with the time they give up. */
+  private readonly pending = new Map<string, number>();
+  private readonly surges = new Map<string, Surge>();
   private nextId = 1;
 
   constructor(spawners: readonly ActorSpawnerDefinition[], options: PopulationOptions) {
@@ -144,6 +202,17 @@ export class ActorPopulation {
     this.random = options.random;
     this.maxActors = Math.max(0, Math.min(MAX_ACTORS_PER_SCENE, options.maxActors));
     this.reducedMotion = options.reducedMotion;
+    for (const action of options.actions ?? []) this.actions.set(action.id, action);
+  }
+
+  /** The action ids this scene implements. */
+  get actionIds(): readonly string[] {
+    return [...this.actions.keys()];
+  }
+
+  /** Actions currently waiting for room or surging, sorted. */
+  get activeActions(): readonly string[] {
+    return [...new Set([...this.pending.keys(), ...this.surges.keys()])].sort();
   }
 
   get actors(): readonly ActorInstance[] {
@@ -168,12 +237,14 @@ export class ActorPopulation {
   retire(): void {
     this.phase = 'retired';
     this.schedule.clear();
+    this.cancelActions();
   }
 
   /** Stops everything and removes every actor. */
   stop(): boolean {
     this.phase = 'idle';
     this.schedule.clear();
+    this.cancelActions();
     return this.clear();
   }
 
@@ -186,6 +257,7 @@ export class ActorPopulation {
     this.reducedMotion = reducedMotion;
     if (reducedMotion) {
       this.schedule.clear();
+      this.cancelActions();
       return this.clear();
     }
     if (this.phase === 'running') this.scheduleAll(now);
@@ -195,9 +267,14 @@ export class ActorPopulation {
   /** Removes finished actors and spawns whatever is due. Returns whether anything changed. */
   advance(now: number): boolean {
     let changed = this.expire(now);
+    // Requested actions go first, so a waiting action wins a lane that has
+    // just become free over the ambient spawner that shares it.
+    if (this.runPending(now)) changed = true;
+    if (this.runSurges(now)) changed = true;
     for (const spawner of this.spawners) {
       const due = this.schedule.get(spawner.id);
-      if (due === undefined || due > now) continue;
+      const interval = spawner.spawn.intervalMs;
+      if (due === undefined || due > now || !interval) continue;
 
       if (this.laneBusy(spawner)) {
         this.schedule.set(spawner.id, now + between(this.random, LANE_RETRY_MS));
@@ -207,15 +284,15 @@ export class ActorPopulation {
       if (this.spawnFrom(spawner, burst, now, 1).length > 0) changed = true;
       // Late timers never cause a catch-up burst: the next spawn is measured
       // from now, not from when this one was due.
-      this.schedule.set(spawner.id, now + between(this.random, spawner.spawn.intervalMs));
+      this.schedule.set(spawner.id, now + between(this.random, interval));
     }
     return changed;
   }
 
   /**
    * Spawns from one spawner immediately, within the same caps as ambient
-   * spawning. This is the internal hook a future event-driven action would
-   * use; nothing in the protocol reaches it today.
+   * spawning. Used by the local setup panel; protocol events go through
+   * `act`, which adds cooldowns and waits for room.
    */
   trigger(spawnerId: string, now: number): readonly ActorInstance[] {
     const spawner = this.spawners.find((candidate) => candidate.id === spawnerId);
@@ -223,17 +300,61 @@ export class ActorPopulation {
     this.expire(now);
     if (this.laneBusy(spawner)) return [];
     const burst = spawner.spawn.burst ? wholeBetween(this.random, spawner.spawn.burst) : 1;
-    return this.spawnFrom(spawner, burst, now, this.reducedMotion ? REDUCED_MOTION_SPEED : 1);
+    return this.spawnFrom(spawner, burst, now, this.reducedMotion ? REDUCED_MOTION_SPEED : 1, true);
+  }
+
+  /**
+   * Performs one of the scene's actions, if it may run now.
+   *
+   * Every request is answered immediately and costs bounded work: a repeat
+   * inside the cooldown is dropped, a spawn with no room holds at most one
+   * waiting slot per action, and a surge that is already running absorbs the
+   * request. Everything spawned stays inside the usual caps (`maxAlive`,
+   * lanes, the scene's `maxActors`).
+   */
+  act(actionId: string, now: number): ActionOutcome {
+    const action = this.actions.get(actionId);
+    if (!action) return 'unsupported';
+    if (this.phase !== 'running') return 'inactive';
+    this.expire(now);
+
+    const last = this.lastAccepted.get(actionId);
+    if (last !== undefined && now - last < action.cooldownMs - COOLDOWN_TOLERANCE_MS) return 'cooldown';
+    if (this.pending.has(actionId) || this.surges.has(actionId)) return 'coalesced';
+
+    const { effect } = action;
+    if (effect.kind === 'surge') {
+      // A surge is sustained ambient motion, which reduced motion turns off.
+      if (this.reducedMotion) return 'reduced-motion';
+      this.lastAccepted.set(actionId, now);
+      this.surges.set(actionId, {
+        effect,
+        endsAt: now + effect.durationMs,
+        schedule: new Map(effect.spawners.map((id) => [id, now])),
+      });
+      this.runSurges(now);
+      return 'started';
+    }
+
+    this.lastAccepted.set(actionId, now);
+    if (this.spawnAction(effect.spawners, now)) return 'started';
+    this.pending.set(actionId, now + ACTION_PENDING_MS);
+    return 'queued';
   }
 
   /** The next time `advance` has something to do, or `null` for never. */
   nextDueAt(): number | null {
     let next: number | null = null;
-    for (const due of this.schedule.values()) next = next === null ? due : Math.min(next, due);
-    for (const actor of this.list) {
-      const end = expiresAt(actor);
-      next = next === null ? end : Math.min(next, end);
+    const consider = (due: number) => {
+      next = next === null ? due : Math.min(next, due);
+    };
+    for (const due of this.schedule.values()) consider(due);
+    for (const due of this.pending.values()) consider(due);
+    for (const surge of this.surges.values()) {
+      consider(surge.endsAt);
+      for (const due of surge.schedule.values()) consider(due);
     }
+    for (const actor of this.list) consider(expiresAt(actor));
     return next;
   }
 
@@ -241,8 +362,69 @@ export class ActorPopulation {
     this.schedule.clear();
     if (this.reducedMotion) return;
     for (const spawner of this.spawners) {
-      this.schedule.set(spawner.id, now + between(this.random, spawner.spawn.initialDelayMs));
+      const delay = spawner.spawn.initialDelayMs;
+      // No ambient schedule: this spawner only ever spawns on request.
+      if (!delay || !spawner.spawn.intervalMs) continue;
+      this.schedule.set(spawner.id, now + between(this.random, delay));
     }
+  }
+
+  /** Spawns from the first listed spawner with room. Returns whether it did. */
+  private spawnAction(spawnerIds: readonly string[], now: number): boolean {
+    for (const spawnerId of spawnerIds) {
+      const spawner = this.spawners.find((candidate) => candidate.id === spawnerId);
+      if (!spawner || this.laneBusy(spawner)) continue;
+      let burst = spawner.spawn.burst ? wholeBetween(this.random, spawner.spawn.burst) : 1;
+      let speed = 1;
+      if (this.reducedMotion) {
+        burst = Math.min(burst, REDUCED_MOTION_ACTION_BURST);
+        speed = REDUCED_MOTION_SPEED;
+      }
+      if (this.spawnFrom(spawner, burst, now, speed, true).length > 0) return true;
+    }
+    return false;
+  }
+
+  private runPending(now: number): boolean {
+    let changed = false;
+    for (const [actionId, deadline] of this.pending) {
+      const action = this.actions.get(actionId);
+      if (action && action.effect.kind === 'spawn' && this.spawnAction(action.effect.spawners, now)) {
+        this.pending.delete(actionId);
+        changed = true;
+      } else if (deadline <= now) {
+        this.pending.delete(actionId);
+      }
+    }
+    return changed;
+  }
+
+  private runSurges(now: number): boolean {
+    let changed = false;
+    for (const [actionId, surge] of this.surges) {
+      if (now >= surge.endsAt) {
+        this.surges.delete(actionId);
+        continue;
+      }
+      for (const [spawnerId, due] of surge.schedule) {
+        if (due > now) continue;
+        const spawner = this.spawners.find((candidate) => candidate.id === spawnerId);
+        if (!spawner) {
+          surge.schedule.delete(spawnerId);
+          continue;
+        }
+        if (!this.laneBusy(spawner) && this.spawnFrom(spawner, 1, now, 1, true).length > 0) {
+          changed = true;
+        }
+        surge.schedule.set(spawnerId, now + between(this.random, surge.effect.intervalMs));
+      }
+    }
+    return changed;
+  }
+
+  private cancelActions(): void {
+    this.pending.clear();
+    this.surges.clear();
   }
 
   private expire(now: number): boolean {
@@ -267,6 +449,7 @@ export class ActorPopulation {
     requested: number,
     now: number,
     speedScale: number,
+    triggered = false,
   ): ActorInstance[] {
     const alive = this.list.filter((actor) => actor.spawnerId === spawner.id).length;
     // A lane holds one actor, so a burst into a lane is a single actor.
@@ -278,7 +461,7 @@ export class ActorPopulation {
     );
     const spawned: ActorInstance[] = [];
     for (let index = 0; index < room; index += 1) {
-      spawned.push(createActor(spawner, this.nextId++, now, this.random, speedScale));
+      spawned.push(createActor(spawner, this.nextId++, now, this.random, speedScale, triggered));
     }
     if (spawned.length > 0) this.list = [...this.list, ...spawned];
     return spawned;

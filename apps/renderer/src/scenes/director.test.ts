@@ -132,4 +132,54 @@ describe('SceneDirector', () => {
     clock.advance(20_000);
     expect(scenes.getActorCounts().total).toBeGreaterThan(0);
   });
+
+  it('routes an action only to the scene showing now', () => {
+    const clock = new FakeClock();
+    const scenes = director(clock);
+    scenes.start();
+
+    expect(scenes.act('space.shooting-star')).toBe('wrong-scene');
+    expect(scenes.lastAction).toEqual({ actionId: 'space.shooting-star', result: 'wrong-scene', at: 0 });
+    expect(scenes.getActorCounts().total).toBe(0);
+
+    expect(scenes.act('roadside.send-bus')).toBe('started');
+    expect(scenes.getActorCounts()).toMatchObject({ total: 1, triggered: 1 });
+  });
+
+  it('refuses actions while stopped', () => {
+    const clock = new FakeClock();
+    const scenes = director(clock);
+    expect(scenes.act('roadside.send-car')).toBe('inactive');
+    expect(scenes.getActorCounts().total).toBe(0);
+  });
+
+  it('never lets an action reach a scene that is fading out', () => {
+    const clock = new FakeClock();
+    const scenes = director(clock);
+    scenes.start();
+    scenes.act('roadside.send-bus');
+    const roadside = scenes.current;
+
+    scenes.show('space', 900);
+
+    expect(scenes.act('roadside.send-car')).toBe('wrong-scene');
+    expect(roadside.engine.counts().total).toBe(1);
+    clock.advance(900);
+    expect(roadside.engine.actors).toHaveLength(0);
+    expect(roadside.engine.scheduled).toBe(false);
+    expect(scenes.getActorCounts().triggered).toBe(0);
+  });
+
+  it('notifies diagnostics of each action request', () => {
+    const clock = new FakeClock();
+    const scenes = director(clock);
+    const listener = vi.fn();
+    scenes.subscribeActivity(listener);
+    scenes.start();
+
+    scenes.act('roadside.send-car');
+
+    expect(listener).toHaveBeenCalled();
+    expect(scenes.lastAction?.result).toBe('started');
+  });
 });
