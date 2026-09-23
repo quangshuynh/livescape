@@ -27,6 +27,10 @@ export interface Health {
   readonly connectedClients: number;
   readonly currentScene: string;
   readonly activeEffects: readonly string[];
+  /** Scene actions still cooling down, with the milliseconds left. */
+  readonly actionCooldowns?: Readonly<Record<string, number>>;
+  /** Local epoch milliseconds when this response arrived; set by `fetchHealth`. */
+  readonly receivedAt?: number;
 }
 
 export interface AcceptedEvent {
@@ -38,10 +42,20 @@ export class EventServerError extends Error {
   constructor(
     message: string,
     readonly status: number | null,
+    /** For a scene action refused while cooling down (429): time left. */
+    readonly retryAfterMs: number | null = null,
   ) {
     super(message);
     this.name = 'EventServerError';
   }
+}
+
+function retryAfterOf(body: unknown): number | null {
+  if (typeof body === 'object' && body !== null && 'retryAfterMs' in body) {
+    const value = (body as { retryAfterMs: unknown }).retryAfterMs;
+    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return value;
+  }
+  return null;
 }
 
 type FetchLike = typeof fetch;
@@ -83,7 +97,7 @@ export async function sendEvent(
     } catch {
       // Keep the status-only message.
     }
-    throw new EventServerError(describeRejection(body), response.status);
+    throw new EventServerError(describeRejection(body), response.status, retryAfterOf(body));
   }
 
   return (await response.json()) as AcceptedEvent;
@@ -94,7 +108,8 @@ export async function fetchHealth(baseUrl: string, fetchImpl: FetchLike = fetch)
   if (!response.ok) {
     throw new EventServerError(`health check failed (${response.status})`, response.status);
   }
-  return (await response.json()) as Health;
+  const health = (await response.json()) as Health;
+  return { ...health, receivedAt: Date.now() };
 }
 
 /**
