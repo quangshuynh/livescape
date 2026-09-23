@@ -13,8 +13,8 @@ by OBS as a Browser Source.
 ## Architecture
 
 ```text
-Control Panel
-    ↓ POST /api/events
+Control Panel          Platform Adapter (separate process; simulated source)
+    ↓ POST /api/events     ↓ POST /api/events (scene.action only)
 Event Server
     ↓ WebSocket /ws
 Renderer
@@ -22,9 +22,9 @@ Renderer
 OBS Browser Source
 ```
 
-Platform adapters do not exist yet. When they do, they sit upstream of the
-event server and translate external events into the same envelopes the control
-panel already sends.
+The platform adapter sits upstream of the event server and sends the same
+`scene.action` requests the control panel sends. No real platform is
+connected.
 
 ## Repository structure
 
@@ -43,6 +43,7 @@ apps/renderer/         React + Vite renderer; the OBS Browser Source
   vite/mediapipeAssets.ts  Publishes the MediaPipe WASM runtime locally
 apps/control-panel/    React + Vite operator UI
 services/event-server/ FastAPI event server (Python 3.13+)
+services/platform-adapter/  Platform adapter (Python 3.13+, stdlib only)
 packages/protocol/     Shared TypeScript protocol types, guards, registry
 docs/                  MkDocs documentation site sources
 mkdocs.yml             Documentation site configuration
@@ -51,8 +52,11 @@ requirements-docs.txt  Documentation tooling (MkDocs + Material)
 .github/workflows/docs.yml  Strict MkDocs build; GitHub Pages deploy from main
 ```
 
-npm workspaces: `packages/*` and `apps/*`. The event server is a separate
-Python package installed with `pip install -e "services/event-server[dev]"`.
+npm workspaces: `packages/*` and `apps/*`. The event server and the adapter are
+separate Python packages (`pip install -e "services/event-server[dev]"`,
+`pip install -e "services/platform-adapter[dev]"`). The adapter's integration
+tests import the event server; run the two pytest suites separately (both have
+a `tests` package).
 
 ## Event flow
 
@@ -110,8 +114,9 @@ against the JSON at import/load, including owner scene and cooldown bounds
 
 The protocol is defined twice, once per runtime, and both are validated against
 the same allowlist. `packages/protocol/registry.json` is canonical;
-`services/event-server/src/livescape_event_server/registry.json` is a copy and
-`tests/test_registry.py` fails if the two drift. `registry.ts` throws at import
+`services/event-server/src/livescape_event_server/registry.json` and
+`services/platform-adapter/src/livescape_platform_adapter/registry.json` are
+copies, and each package's `tests/test_registry.py` fails if its copy drifts. `registry.ts` throws at import
 time if the JSON disagrees with the declared TypeScript unions.
 
 Full reference: [docs/protocol.md](docs/protocol.md).
@@ -148,6 +153,38 @@ Full reference: [docs/protocol.md](docs/protocol.md).
 * Binds to `127.0.0.1` by default with a CORS allowlist for the two dev servers.
 * State is in memory only. A restart returns to the default scene.
 
+**Platform adapter** (`services/platform-adapter`, `python -m
+livescape_platform_adapter`)
+
+* Pipeline: `PlatformSource` (`source.py`: `connect` / `events()` /
+  `disconnect` / `status`) yields `PlatformEvent | NormalizationError`
+  (`events.py`) → `Adapter.offer` (`adapter.py`): malformed → duplicate
+  (`dedup.py`, `(platform, event_id)`, TTL 600 s, cap 4096, remembered on
+  first sight) → stale (`occurred_at` > 30 s old) → `MappingTable.resolve`
+  (unmapped / below-minimum) → 429 hold for that action → server-unavailable
+  back-off (1 s) → coalesce if pending or in flight → one pending slot per
+  action → single worker (`asyncio.to_thread`) → `EventServerClient`.
+* `PlatformEvent`: `platform`, `kind` (`gift` | `follow`), `event_id?`,
+  `gift_id` (gifts), `quantity` 1..10000, `occurred_at?`. No viewer fields.
+  Normalization drops everything else.
+* Mappings (`mapping.py`, TOML, `default-mappings.toml` bundled): `version = 1`
+  and `[[mapping]]` with exactly `platform`, `kind`, `gift`, `action`,
+  `min_quantity`. Unknown keys, unknown actions (checked against the adapter's
+  `registry.json` copy, drift-tested), duplicates and bad tokens fail startup
+  with every problem listed.
+* Client (`client.py`): loopback-only URL, no proxies, no redirects, 2 s
+  timeout, 64 KiB response cap. One attempt, never retried. 202 accepted
+  (validated shape), 409 wrong-scene, 422 rejected, 429 cooling-down
+  (`retryAfterMs` or `Retry-After`, capped 60 s), unreachable → unavailable
+  (drops everything pending), anything else server-error.
+* Sends `source: "simulation"` (`AdapterEventSource`); a real platform needs a
+  platform-neutral source added to the registry first.
+* Status: per-decision log lines and a JSON snapshot (counters, pending,
+  holds, server status, last error). In memory only; no viewer data or event
+  ids.
+* `SimulationSource`: own wire format (`type`/`id`/`sentAt`/`gift.count`/
+  `viewer`), bounded inbox (256), deterministic scenarios (`SCENARIO_NAMES`).
+
 **Control panel** (`apps/control-panel`)
 
 * Scene buttons, effect triggers with intensity, and clear controls.
@@ -158,8 +195,8 @@ Full reference: [docs/protocol.md](docs/protocol.md).
   health response's local `receivedAt`.
 * A clearly labelled "simulated viewer event" section that maps a pretend gift,
   follow, or chat command onto a normalized `effect.trigger` tagged
-  `source: "simulation"`. It demonstrates the adapter boundary; it observes no
-  real viewer.
+  `source: "simulation"`. It predates the platform adapter and is a UI shortcut,
+  not the adapter path; it observes no real viewer.
 * Health polling and a live activity feed over the same WebSocket.
 
 ## Scenes and effects
@@ -318,6 +355,8 @@ it is a separate 154 KB chunk that is never fetched unless segmentation runs.
 | `LIVESCAPE_ALLOWED_ORIGINS` | the four loopback dev-server origins |
 | `VITE_LIVESCAPE_WS_URL` | `ws://127.0.0.1:8765/ws` |
 | `VITE_LIVESCAPE_API_URL` | `http://127.0.0.1:8765` (control panel only) |
+| `LIVESCAPE_EVENT_SERVER_URL` | `http://127.0.0.1:8765` (adapter; loopback only) |
+| `LIVESCAPE_ADAPTER_MAPPINGS` | bundled demonstration mappings (adapter) |
 
 Every value is also the built-in default, so no `.env` file is required.
 
@@ -326,6 +365,7 @@ Every value is also the built-in default, so no `.env` file is required.
 | Suite | Count |
 | --- | --- |
 | `services/event-server/tests` (pytest) | 78 |
+| `services/platform-adapter/tests` (pytest) | 181 |
 | `packages/protocol` (Vitest) | 45 |
 | `apps/control-panel` (Vitest) | 31 |
 | `apps/renderer` (Vitest) | 402 |
@@ -348,6 +388,9 @@ Verification commands:
 python -m ruff check services/event-server
 python -m ruff format --check services/event-server
 python -m pytest services/event-server
+python -m ruff check services/platform-adapter
+python -m ruff format --check services/platform-adapter
+python -m pytest services/platform-adapter
 npm run lint && npm run typecheck && npm test && npm run build
 mkdocs build --strict
 ```
@@ -371,6 +414,11 @@ third-party scripts. Header logo and favicon are small derivatives of
 ## Invariants
 
 * The renderer never learns about a platform. Adapters normalize upstream.
+* The adapter has no privileges beyond the control panel's: ordinary
+  `scene.action` over loopback HTTP. Mappings can only name allowlisted
+  actions; normalized events carry no viewer data; nothing is persisted,
+  retried or replayed, and adapter memory is bounded regardless of event rate.
+  Adapter counts are visual, never a ledger.
 * Scene, effect and action ids resolve through the registry allowlist on both
   sides.
 * Payloads carry no code, paths, URLs, or prompts, and there is no generic
@@ -398,14 +446,12 @@ third-party scripts. Header logo and favicon are small derivatives of
 
 * No persistence. Scene state is in memory and resets on restart.
 * No authentication or authorization on the control API.
-* No platform integration. The control panel and its simulation section are the
-  only event sources.
+* No real platform integration. The adapter's only source is the simulator.
+  Events without a platform id cannot be deduplicated. Dedup does not survive
+  an adapter restart.
 * Scene actions take no parameters and are one-shot or timed; City has none.
   The renderer's cooldown and waiting state is per showing, so returning to a
   scene resets it (the server's cooldown still applies).
-* Scene actions have been exercised in the in-app browser and in headless
-  Brave with a synthetic camera (Raw ordering, Segmented costs), not with a
-  real person or in OBS.
 * Segmentation runs on the main thread. `segmentForVideo` is synchronous, so
   inference competes with rendering. Measured ~17 ms per mask (mostly GPU
   readback) plus ~3 ms matte processing at 30/s on an Apple M1 in headless
@@ -417,11 +463,13 @@ third-party scripts. Header logo and favicon are small derivatives of
   auto-grants camera access to every browser source in that instance.
 * Actors move linearly at constant speed; effects ignore a scene's framing
   (rain falls indoors in Roadside Workshop, fireworks draw over its walls).
-* A physical camera and a real person have been run in Chromium and in OBS on
-  macOS (Raw, Segmented, scene switching, Roadside Workshop). That predates
-  the synchronised matte pipeline, whose visual quality on a real person has
-  not been judged yet; its costs were measured with Chromium's synthetic
-  camera.
+* Validated with a physical camera and a real person in Brave and in an OBS
+  Browser Source on macOS (flags above plus the macOS Camera permission): Raw,
+  Segmented, scene switching, Roadside Workshop, and scene actions through the
+  event server (Send Bus behind, Blow Leaves in front of the subject).
+  Frame/mask sync clearly reduced motion leakage; low light degrades the matte
+  substantially; hair and thin fingers remain difficult (a finger can vanish
+  or a gap fill). Performance was measured with Chromium's synthetic camera.
 * Edge refinement is luminance-guided only.
 * No audio, no 3D, no AI.
 * Single process, single machine. No multi-operator coordination.
@@ -431,9 +479,7 @@ third-party scripts. Header logo and favicon are small derivatives of
 * Move segmentation inference into a Web Worker. The `SubjectSegmenter`
   interface already isolates the backend, so the compositor and camera
   lifecycle do not change.
-* Judge the synchronised matte with a real person in Brave and in OBS, using
-  the manual validation matrix, and re-measure in OBS.
-* Platform adapters as separate processes that speak the existing protocol,
-  mapping platform events onto existing scene actions.
-* Judge Send Bus and Blow Leaves around a real person in Segmented mode and in
-  an OBS Browser Source.
+* Re-measure segmentation cost inside OBS.
+* A first real platform source, chosen by what official platform APIs actually
+  expose in real time (TikTok's public developer docs list no LIVE event API),
+  plus a platform-neutral protocol `source` for its traffic.

@@ -14,8 +14,10 @@ tested against a shared allowlist:
 | `packages/protocol/src/` | TypeScript types, guards and request builders |
 | `services/event-server/src/livescape_event_server/models.py` | Pydantic models |
 | `services/event-server/src/livescape_event_server/registry.json` | server copy of the allowlist |
+| `services/platform-adapter/src/livescape_platform_adapter/registry.json` | adapter copy, used only to validate [mappings](platform-adapters.md#mappings) |
 
-`tests/test_registry.py` fails if the two registry copies drift apart, and
+Each Python package's `tests/test_registry.py` fails if its copy drifts from
+the canonical registry, and
 `registry.ts` throws at import time if the JSON disagrees with the declared
 TypeScript unions.
 

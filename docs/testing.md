@@ -11,6 +11,9 @@ test that cannot be trusted.
 python -m ruff check services/event-server
 python -m ruff format --check services/event-server
 python -m pytest services/event-server
+python -m ruff check services/platform-adapter
+python -m ruff format --check services/platform-adapter
+python -m pytest services/platform-adapter
 
 # TypeScript: lint, typecheck, tests, production build
 npm run lint
@@ -38,12 +41,16 @@ result to GitHub Pages. See [Documentation Site](documentation-site.md).
 | Suite | Tests | Focus |
 | --- | --- | --- |
 | `services/event-server/tests` | 78 | Protocol validation, state folding and expiry, broadcast and client dropping, WebSocket handshake and `state.sync`, health, registry drift, scene action ownership, cooldowns, bursts and non-replay |
+| `services/platform-adapter/tests` | 181 | Normalization and malformed input, viewer-data stripping, mapping validation (allowlist, duplicates, forbidden keys), bounded expiring deduplication, freshness, the event-server client (202, 409, 422, 429, unreachable, malformed responses, loopback-only URLs), coalescing and cooldown holds, outage and recovery, 50-event and mixed bursts, memory bounds, and integration with the real event server in-process and over loopback HTTP |
 | `packages/protocol` | 45 | Envelope parsing, bounds, defaults, request builders, the action registry and `scene.action` validation |
 | `apps/renderer` | 402 | Reducer transitions, reconnect backoff, effect particle budgets, camera lifecycle, segmentation scheduling, frame/mask synchronisation, temporal filtering and edge refinement, compositing, scene composition and actors, scene actions (routing, planes, cooldowns, bursts, cleanup, reduced motion, reconnect), and rendering |
 | `apps/control-panel` | 31 | Request building, rejection handling, simulated-action mapping, scene action controls and feedback, UI behaviour |
 
 Python tests use pytest with `filterwarnings = ["error"]`, so a new warning
-from our own code fails the suite.
+from our own code fails the suite. The adapter's integration tests import the
+event server from this repository; install both packages (CI does) or those
+tests are skipped. Run the two Python suites separately, since both use a
+`tests` package.
 
 TypeScript tests use Vitest with jsdom. WebSocket behaviour is tested against a
 fake socket (`src/test/fakeWebSocket.ts` in each app) rather than a live
@@ -88,6 +95,9 @@ Two claims require actual verification before they are written down anywhere:
   if real hardware was tested.
 * **OBS compatibility.** Only state that something works in OBS if OBS was
   tested. Nothing in the test suite exercises OBS.
+* **Platform integration.** Simulated platform events prove the adapter
+  boundary, not a platform. Only call something a platform integration if it
+  was exercised against that platform's official API.
 
 Those are separate levels of evidence, and the documentation keeps them
 separate. What has been verified for the camera pipeline, and what has not, is

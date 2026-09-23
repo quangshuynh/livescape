@@ -8,6 +8,7 @@ apps/
   control-panel/     React + Vite operator UI
 services/
   event-server/      FastAPI event server (Python 3.13+)
+  platform-adapter/  Platform adapter (Python 3.13+, standard library only)
 packages/
   protocol/          Shared TypeScript protocol types, guards and registry
 docs/                Documentation site sources
@@ -15,8 +16,9 @@ docs/                Documentation site sources
 mkdocs.yml           Documentation site configuration
 ```
 
-The npm workspaces are `packages/*` and `apps/*`. The event server is not part
-of the JavaScript workspace; it is installed separately with pip.
+The npm workspaces are `packages/*` and `apps/*`. The event server and the
+platform adapter are not part of the JavaScript workspace; each is installed
+separately with pip.
 
 ## `packages/protocol`
 
@@ -82,6 +84,23 @@ lifecycle and compositing rules testable without hardware.
 `hub.py` deliberately knows nothing about FastAPI. It talks to anything with an
 async `send_json`, which keeps broadcast and failure handling testable without
 a real socket.
+
+## `services/platform-adapter`
+
+| File | Responsibility |
+| --- | --- |
+| `events.py` | The normalized `PlatformEvent` model and `NormalizationError` |
+| `source.py` | The `PlatformSource` interface a platform integration implements |
+| `simulation.py` | The simulated platform: wire format, normalization, scenarios, bounded source |
+| `mapping.py` / `default-mappings.toml` | Mapping file parsing and validation, and the demonstration mappings |
+| `registry.py` / `registry.json` | Adapter copy of the allowlist, used to validate mappings |
+| `dedup.py` | Bounded, expiring memory of platform event ids |
+| `client.py` | Loopback-only HTTP client for `POST /api/events` and response classification |
+| `adapter.py` | The pipeline: freshness, dedup, mapping, coalescing, cooldown holds, outage handling, status |
+| `__main__.py` | Command line: `--check`, scenario runs and interactive mode |
+
+The adapter imports nothing from the event server or the renderer. Its tests do
+import the event server, to run the adapter against the real thing.
 
 ## Conventions
 

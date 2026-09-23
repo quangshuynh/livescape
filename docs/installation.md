@@ -40,6 +40,15 @@ python -m pip install -e "services/event-server[dev]"
 
 That pulls in FastAPI, Pydantic, uvicorn and websockets, plus pytest and Ruff.
 
+## Optional: the platform adapter
+
+The [platform adapter](platform-adapters.md) has no runtime dependencies beyond
+the standard library:
+
+```bash
+python -m pip install -e "services/platform-adapter[dev]"
+```
+
 ## Optional: documentation tooling
 
 Only needed if you want to build this site locally:
@@ -52,6 +61,7 @@ python -m pip install -r requirements-docs.txt
 
 ```bash
 python -m pytest services/event-server
+python -m pytest services/platform-adapter
 npm test
 ```
 

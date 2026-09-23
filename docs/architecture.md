@@ -14,12 +14,12 @@ event source
 
 ```mermaid
 flowchart LR
-    subgraph future["Future: platform adapters (not implemented)"]
-        platform["Livestream platform events"] --> adapter["Platform adapter"]
+    subgraph adapterproc["Platform adapter (separate process)"]
+        platform["Platform source<br/>(simulated today)"] --> adapter["Normalize, map,<br/>dedup, coalesce"]
     end
 
     panel["Control panel<br/>(React + Vite)"] -->|POST /api/events| server
-    adapter -.->|normalized event| server
+    adapter -->|"POST /api/events<br/>scene.action"| server
 
     server["Event server<br/>(FastAPI + Pydantic)"] -->|WebSocket /ws| renderer
     server -->|WebSocket /ws| panel
@@ -61,6 +61,17 @@ the shared protocol builders and POSTs them. It also subscribes to the same
 WebSocket for a live activity feed, which means it sees exactly what the
 renderer sees.
 
+### Platform adapter
+
+A separate, optional Python process (`services/platform-adapter`) that turns
+external platform events into scene actions. A platform source normalizes each
+external event into a small platform-neutral record with no viewer data, a
+declarative mapping file selects an allowlisted scene action, and the adapter
+deduplicates, drops stale events, coalesces bursts and POSTs an ordinary
+`scene.action`. It has no privileges the control panel lacks. The only source
+today is a deterministic simulator; no real platform is connected. See
+[Platform Adapters](platform-adapters.md).
+
 ### Protocol package
 
 `@livescape/protocol` holds the TypeScript types, type guards, request builders
@@ -75,7 +86,9 @@ required. A stream should not go dark because a remote service did.
 
 **Platform independence.** The renderer knows nothing about any livestream
 platform. An adapter's only job is to translate an external event into a
-LiveScape envelope. That keeps platform churn at the edge, where it belongs.
+LiveScape envelope. That keeps platform churn at the edge, where it belongs:
+adding a platform means adding a platform source to the adapter, and nothing
+downstream of the event server changes.
 
 **Resilience.** External failures must not break the renderer. When the event
 server, the network or an optional integration disappears, whatever is on

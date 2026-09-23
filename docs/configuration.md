@@ -22,6 +22,17 @@ The default origin allowlist is `http://127.0.0.1:5173`,
 
 Invalid values fail loudly at startup rather than being silently coerced.
 
+## Platform adapter
+
+Source: [`services/platform-adapter/.env.example`](https://github.com/quangshuynh/livescape/blob/main/services/platform-adapter/.env.example)
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `LIVESCAPE_EVENT_SERVER_URL` | `http://127.0.0.1:8765` | Loopback only. Any other host, a path, query or credentials fail at startup. |
+| `LIVESCAPE_ADAPTER_MAPPINGS` | the bundled demonstration mappings | Path to a [mapping file](platform-adapters.md#mappings). An invalid file fails at startup. |
+
+Both can be overridden with `--server` and `--mappings`.
+
 ## Renderer
 
 Source: [`apps/renderer/.env.example`](https://github.com/quangshuynh/livescape/blob/main/apps/renderer/.env.example)
