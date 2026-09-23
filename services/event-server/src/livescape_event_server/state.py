@@ -1,8 +1,10 @@
 """In-memory scene state.
 
-There is no persistence in this interval: the state exists so that a renderer
-which connects (or reconnects) mid-session is told what is currently on screen
-instead of snapping back to the default scene.
+There is no persistence: the state exists so that a renderer which connects
+(or reconnects) mid-session is told what is currently on screen instead of
+snapping back to the default scene. Only durable state lives here. A
+``scene.action`` is a transient event and is deliberately not recorded, so it
+is never replayed to a renderer that connects after it happened.
 """
 
 from __future__ import annotations
