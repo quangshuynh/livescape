@@ -35,6 +35,33 @@ jobs:
       - name: Test
         run: python -m pytest
 
+  platform-adapter:
+    name: Platform adapter (Python)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/platform-adapter
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      # The event server is installed too so the integration tests run
+      # against it instead of being skipped.
+      - name: Install
+        run: python -m pip install --upgrade pip && python -m pip install -e "../event-server[dev]" -e ".[dev]"
+
+      - name: Lint
+        run: python -m ruff check .
+
+      - name: Format check
+        run: python -m ruff format --check .
+
+      - name: Test
+        run: python -m pytest
+
   typescript:
     name: Renderer, control panel and protocol (TypeScript)
     runs-on: ubuntu-latest
